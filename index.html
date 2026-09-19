@@ -1,1416 +1,973 @@
 <!DOCTYPE html>
-<html lang="en" class="light">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personal Payroll Dashboard with Offset OT & Other Income</title>
-    <!-- Tailwind CSS -->
+    <title>Personal Payroll Dashboard</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
-            darkMode: 'class',
             theme: {
                 extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
                     colors: {
                         brand: {
-                            50: '#f0f9ff',
-                            100: '#e0f2fe',
-                            500: '#0284c7',
-                            600: '#0284c7',
-                            700: '#0369a1',
-                            800: '#075985',
-                            900: '#0c4a6e',
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
                         }
                     }
                 }
             }
         }
     </script>
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- html2pdf for PDF export -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
         @media print {
             .no-print { display: none !important; }
             .print-only { display: block !important; }
             body { background: white !important; color: black !important; }
-            .print-shadow-none { box-shadow: none !important; }
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: rgba(0,0,0,0.05);
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: rgba(0,0,0,0.2);
-            border-radius: 4px;
+            .print-card { border: none !important; shadow: none !important; padding: 0 !important; }
         }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-200">
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
 
-    <!-- Top Navigation Bar -->
-    <header class="no-print bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30 shadow-sm">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <div class="p-2 bg-brand-600 text-white rounded-xl shadow-md">
-                    <i data-lucide="calculator" class="w-6 h-6"></i>
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none no-print"></div>
+
+    <!-- Edit Status Banner -->
+    <div id="edit-mode-banner" class="hidden bg-amber-500 text-white px-4 py-2 text-sm font-semibold shadow-md flex items-center justify-between no-print sticky top-0 z-40">
+        <div class="flex items-center gap-2">
+            <i class="fa-solid fa-pen-to-square text-lg"></i>
+            <span id="edit-mode-text">Editing Saved Payroll Record #[ID]</span>
+        </div>
+        <button onclick="cancelEditing()" class="bg-amber-700 hover:bg-amber-800 px-3 py-1 rounded text-xs transition font-medium flex items-center gap-1">
+            <i class="fa-solid fa-xmark"></i> Cancel Editing (New Entry)
+        </button>
+    </div>
+
+    <!-- Header Section -->
+    <header class="bg-slate-900 text-white py-4 px-6 shadow-lg no-print">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-brand-500 p-2.5 rounded-xl text-slate-900">
+                    <i class="fa-solid fa-calculator text-xl"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg leading-none">PayPulse <span class="text-xs bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-semibold px-2 py-0.5 rounded-md ml-1">Pro Payroll</span></h1>
-                    <span class="text-xs text-slate-500 dark:text-slate-400">Semi-Monthly Personal Payroll, Offset OT & Other Income</span>
+                    <h1 class="text-xl font-bold tracking-tight">Payroll Manager Pro</h1>
+                    <p class="text-xs text-slate-400">Semi-Monthly Personal Calculation & History Log</p>
                 </div>
             </div>
             
-            <div class="flex items-center space-x-3">
-                <!-- Currency Selector -->
-                <div class="flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg px-2 py-1 text-sm">
-                    <span class="text-xs text-slate-500 dark:text-slate-400 mr-1 font-medium">Currency:</span>
-                    <select id="currencySymbol" onchange="calculatePayroll()" class="bg-transparent border-none text-xs sm:text-sm font-semibold focus:outline-none cursor-pointer dark:text-slate-200">
-                        <option value="₱" selected>PHP (₱)</option>
-                        <option value="$">USD ($)</option>
-                        <option value="€">EUR (€)</option>
-                        <option value="£">GBP (£)</option>
-                        <option value="₹">INR (₹)</option>
-                        <option value="C$">CAD (C$)</option>
-                    </select>
-                </div>
-
-                <!-- Dark Mode Toggle -->
-                <button onclick="toggleDarkMode()" class="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 transition">
-                    <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
-                    <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+            <div class="flex items-center gap-2 flex-wrap">
+                <button onclick="saveCurrentPayroll()" class="bg-brand-600 hover:bg-brand-500 text-white font-semibold px-4 py-2 rounded-lg shadow transition flex items-center gap-2 text-sm">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    <span id="save-btn-text">Save Payroll Record</span>
+                </button>
+                <button onclick="resetForm()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium px-3 py-2 rounded-lg transition text-sm flex items-center gap-1.5" title="Reset fields to default">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span>Reset</span>
                 </button>
             </div>
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto p-4 sm:p-6 w-full flex-grow space-y-6">
 
-        <!-- Employee Profile & Cut-Off Period Selector -->
-        <section class="no-print bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
-            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <!-- Profile Header -->
-                <div class="flex items-center space-x-4">
-                    <div class="relative group cursor-pointer" onclick="document.getElementById('avatarUpload').click()">
-                        <img id="profileAvatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Profile" class="w-16 h-16 rounded-full object-cover border-2 border-brand-500 shadow-sm">
-                        <div class="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                            <i data-lucide="camera" class="w-5 h-5 text-white"></i>
+        <!-- Controls & Pay Period Toolbar -->
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 no-print">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Employee Name</label>
+                    <input type="text" id="emp-name" value="John Doe" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Select Year & Month</label>
+                    <input type="month" id="pay-month" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Salary Cut-off Period</label>
+                    <select id="cutoff-period" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" onchange="updateOtRulesInfo(); calculatePayroll();">
+                        <option value="1">1st Cut-off (1st - 15th)</option>
+                        <option value="2">2nd Cut-off (16th - End of Month)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Daily Rate (₱)</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-2 text-slate-400 text-sm">₱</span>
+                        <input type="number" id="daily-rate" value="695" min="0" step="0.01" class="w-full border border-slate-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none font-medium" oninput="calculatePayroll()">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info Alert for Offset Rules -->
+            <div id="ot-range-info" class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800 flex items-start gap-2">
+                <i class="fa-solid fa-circle-info text-blue-500 mt-0.5 text-sm"></i>
+                <div id="ot-range-text">Loading overtime rules window...</div>
+            </div>
+        </div>
+
+        <!-- Inputs Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 no-print">
+
+            <!-- Card 1: Attendance & Base Pay -->
+            <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
+                        <i class="fa-regular fa-calendar-check text-brand-600"></i>
+                        <h2 class="font-bold text-slate-800">1. Attendance & Base Pay</h2>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Days Worked in Period</label>
+                            <input type="number" id="days-worked" value="12" min="0" max="16" step="0.5" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" oninput="calculatePayroll()">
+                            <p class="text-[11px] text-slate-400 mt-1">Standard full semi-monthly shift is 10-13 days.</p>
                         </div>
-                        <input type="file" id="avatarUpload" class="hidden" accept="image/*" onchange="loadAvatar(event)">
+
+                        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                            <span class="text-xs text-slate-500 font-medium">Hourly Rate Equivalent</span>
+                            <div class="text-lg font-bold text-slate-700" id="hourly-rate-display">₱86.88 / hr</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-500 uppercase">Base Pay Total</span>
+                    <span class="text-lg font-extrabold text-slate-800" id="base-pay-display">₱8,340.00</span>
+                </div>
+            </div>
+
+            <!-- Card 2: Overtime Entry Log -->
+            <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 lg:col-span-2 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-clock text-amber-500"></i>
+                            <h2 class="font-bold text-slate-800">2. Overtime Logs (1.25x Rate)</h2>
+                        </div>
+                        <button onclick="addOtRow()" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 font-semibold px-2.5 py-1.5 rounded-lg transition border border-amber-200 flex items-center gap-1">
+                            <i class="fa-solid fa-plus"></i> Add OT Shift
+                        </button>
+                    </div>
+
+                    <!-- OT Items Container -->
+                    <div class="space-y-3 max-h-60 overflow-y-auto pr-1" id="ot-rows-container">
+                        <!-- Dynamic OT Rows Inserted Here -->
+                    </div>
+                </div>
+
+                <div class="mt-6 pt-4 border-t border-slate-100 flex flex-wrap justify-between items-center gap-2">
+                    <div class="text-xs text-slate-500">
+                        Meal Allowance Trigger: <span class="font-semibold text-slate-700">+₱30</span> per shift extending/reaching 8:00 PM (20:00).
+                    </div>
+                    <div class="text-right">
+                        <span class="text-xs font-bold text-slate-500 uppercase block">Total OT & Meal Allowance</span>
+                        <span class="text-lg font-extrabold text-amber-600" id="total-ot-display">₱0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 3: Other Income / Additional Pay -->
+            <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-hand-holding-dollar text-emerald-600"></i>
+                        <h2 class="font-bold text-slate-800">3. Additional Income</h2>
+                    </div>
+                    <button onclick="addIncomeRow()" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold px-2.5 py-1.5 rounded-lg transition border border-emerald-200 flex items-center gap-1">
+                        <i class="fa-solid fa-plus"></i> Add Item
+                    </button>
+                </div>
+
+                <div class="space-y-3 max-h-48 overflow-y-auto pr-1" id="income-rows-container">
+                    <!-- Dynamic Income Rows -->
+                </div>
+
+                <div class="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-500 uppercase">Other Income Total</span>
+                    <span class="text-lg font-extrabold text-emerald-600" id="total-income-display">₱0.00</span>
+                </div>
+            </div>
+
+            <!-- Card 4: Standard & Custom Deductions -->
+            <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 lg:col-span-2">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-receipt text-rose-500"></i>
+                        <h2 class="font-bold text-slate-800">4. Deductions Breakdown</h2>
+                    </div>
+                    <button onclick="addDeductionRow()" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold px-2.5 py-1.5 rounded-lg transition border border-rose-200 flex items-center gap-1">
+                        <i class="fa-solid fa-plus"></i> Add Custom Deduction
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">SSS</label>
+                        <div class="relative">
+                            <span class="absolute left-2.5 top-2 text-slate-400 text-xs">₱</span>
+                            <input type="number" id="ded-sss" value="0" min="0" step="0.01" class="w-full border border-slate-300 rounded-lg pl-6 pr-2 py-1.5 text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none" oninput="calculatePayroll()">
+                        </div>
                     </div>
                     <div>
-                        <div class="flex items-center space-x-2">
-                            <input type="text" id="empName" value="Alex Morgan" onchange="saveAppData(); calculatePayroll();" class="font-bold text-xl sm:text-2xl bg-transparent border-b border-transparent hover:border-slate-300 focus:border-brand-500 focus:outline-none transition dark:text-white">
-                        </div>
-                        <div class="flex flex-wrap items-center gap-2 mt-1">
-                            <input type="text" id="empTitle" value="Technical Operator / Staff" onchange="saveAppData(); calculatePayroll();" class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-brand-500 focus:outline-none transition">
-                            <span class="text-slate-300 dark:text-slate-600">•</span>
-                            <input type="text" id="empId" value="EMP-2026" onchange="saveAppData(); calculatePayroll();" class="text-xs text-slate-400 dark:text-slate-500 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-brand-500 focus:outline-none transition">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">PhilHealth</label>
+                        <div class="relative">
+                            <span class="absolute left-2.5 top-2 text-slate-400 text-xs">₱</span>
+                            <input type="number" id="ded-philhealth" value="0" min="0" step="0.01" class="w-full border border-slate-300 rounded-lg pl-6 pr-2 py-1.5 text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none" oninput="calculatePayroll()">
                         </div>
                     </div>
-                </div>
-
-                <!-- Semi-Monthly Cut-off Selection Dashboard Panel -->
-                <div class="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3 min-w-[340px]">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Salary Pay Period</span>
-                        <span id="dateRangeDisplay" class="text-xs font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-slate-800 px-2 py-0.5 rounded-md">1st Cut-off (Sept 1 - 15)</span>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 uppercase mb-1">Pay Month & Year</label>
-                            <input type="month" id="payPeriodMonth" onchange="updateCutoffDates(); calculatePayroll();" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-semibold p-2 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                        </div>
-
-                        <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 uppercase mb-1">Pay Cycle</label>
-                            <select id="cutoffSelection" onchange="updateCutoffDates(); calculatePayroll();" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-semibold p-2 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                                <option value="cut1">1st Cut-off (1st to 15th)</option>
-                                <option value="cut2">2nd Cut-off (16th to 31st/EOM)</option>
-                            </select>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Pag-IBIG</label>
+                        <div class="relative">
+                            <span class="absolute left-2.5 top-2 text-slate-400 text-xs">₱</span>
+                            <input type="number" id="ded-pagibig" value="0" min="0" step="0.01" class="w-full border border-slate-300 rounded-lg pl-6 pr-2 py-1.5 text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none" oninput="calculatePayroll()">
                         </div>
                     </div>
-
-                    <!-- Offset OT Range Notice Banner -->
-                    <div class="bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-lg border border-amber-200 dark:border-amber-900/60 flex items-start space-x-2 text-[11px]">
-                        <i data-lucide="clock" class="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5"></i>
-                        <div>
-                            <span class="font-bold text-amber-800 dark:text-amber-300">Overtime Cut-off Period:</span>
-                            <span id="otCutoffRangeText" class="font-bold text-slate-800 dark:text-slate-100 block">Aug 26 to Sept 10</span>
-                            <span class="text-slate-500 dark:text-slate-400 text-[10px]">OT from 26th (prev month) to 10th (current month) applies to this payslip.</span>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Withholding Tax</label>
+                        <div class="relative">
+                            <span class="absolute left-2.5 top-2 text-slate-400 text-xs">₱</span>
+                            <input type="number" id="ded-tax" value="0" min="0" step="0.01" class="w-full border border-slate-300 rounded-lg pl-6 pr-2 py-1.5 text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none" oninput="calculatePayroll()">
                         </div>
                     </div>
                 </div>
-            </div>
-        </section>
 
-        <!-- Dynamic Dashboard Summary Cards -->
-        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <!-- Net Take-Home Pay -->
-            <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden bg-gradient-to-br from-white to-brand-50/30 dark:from-slate-800 dark:to-slate-800">
-                <div class="flex items-center justify-between">
-                    <span id="cutCardTitle" class="text-[11px] font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400">Net Take-Home</span>
-                    <div class="p-1.5 rounded-xl bg-brand-50 dark:bg-brand-950/50 text-brand-600 dark:text-brand-400">
-                        <i data-lucide="wallet" class="w-4 h-4"></i>
-                    </div>
+                <div class="space-y-3 border-t border-slate-100 pt-3" id="deduction-rows-container">
+                    <!-- Dynamic Deduction Rows -->
                 </div>
-                <div class="mt-2">
-                    <h3 id="cardCutoffNetPay" class="text-xl sm:text-2xl font-extrabold text-brand-600 dark:text-brand-400">₱0.00</h3>
-                    <p id="cardCutoffGross" class="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Base: ₱0.00</p>
+
+                <div class="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-500 uppercase">Total Deductions</span>
+                    <span class="text-lg font-extrabold text-rose-600" id="total-deductions-display">₱0.00</span>
                 </div>
-                <div class="absolute bottom-0 left-0 right-0 h-1 bg-brand-600"></div>
             </div>
 
-            <!-- Days Worked & Daily Wage -->
-            <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
-                <div class="flex items-center justify-between">
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Days Worked</span>
-                    <div class="p-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
-                        <i data-lucide="calendar" class="w-4 h-4"></i>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    <h3 id="cardDaysSummary" class="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">12 Days</h3>
-                    <p id="cardRateSummary" class="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">₱695.00/day</p>
-                </div>
-                <div class="absolute bottom-0 left-0 right-0 h-1 bg-emerald-500"></div>
-            </div>
+        </div>
 
-            <!-- Total OT & Meal Allowance Card -->
-            <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
-                <div class="flex items-center justify-between">
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">OT & Meals</span>
-                    <div class="p-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400">
-                        <i data-lucide="clock" class="w-4 h-4"></i>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    <h3 id="cardOtPay" class="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">₱0.00</h3>
-                    <p id="cardMealBonusSummary" class="text-[10px] text-amber-600 dark:text-amber-400 font-semibold mt-1">0 hrs OT | 0 Meals</p>
-                </div>
-                <div class="absolute bottom-0 left-0 right-0 h-1 bg-amber-500"></div>
+        <!-- Summary & Computed Net Pay Banner -->
+        <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white rounded-xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 no-print">
+            <div class="space-y-1 text-center md:text-left">
+                <span class="text-xs font-semibold text-brand-400 uppercase tracking-wider">Payroll Calculation Live Summary</span>
+                <h3 class="text-lg font-semibold text-slate-200" id="summary-period-title">--</h3>
+                <p class="text-xs text-slate-400">Includes Gross Pay (Base + OT + Allowances + Bonus) minus Deductions</p>
             </div>
-
-            <!-- NEW: Other Income Summary Card -->
-            <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
-                <div class="flex items-center justify-between">
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Other Income</span>
-                    <div class="p-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
-                        <i data-lucide="trending-up" class="w-4 h-4"></i>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    <h3 id="cardOtherIncome" class="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">₱0.00</h3>
-                    <p id="cardOtherIncomeSub" class="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold mt-1">0 Custom Earnings</p>
-                </div>
-                <div class="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500"></div>
-            </div>
-
-            <!-- Deductions Card -->
-            <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
-                <div class="flex items-center justify-between">
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Deductions</span>
-                    <div class="p-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400">
-                        <i data-lucide="scissors" class="w-4 h-4"></i>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    <h3 id="cardCutoffDeductions" class="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">₱0.00</h3>
-                    <p id="cardDeductionSub" class="text-[10px] text-rose-500 font-medium mt-1">Tax & Deductions</p>
-                </div>
-                <div class="absolute bottom-0 left-0 right-0 h-1 bg-rose-500"></div>
-            </div>
-        </section>
-
-        <!-- Main Input Modules -->
-        <section class="no-print grid grid-cols-1 lg:grid-cols-2 gap-8">
             
-            <!-- Left Module: Daily Wage & Base Salary Calculation -->
-            <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-5">
-                <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
-                    <div class="flex items-center space-x-2">
-                        <i data-lucide="sun" class="w-5 h-5 text-amber-500"></i>
-                        <h2 class="font-bold text-lg">Daily Wage Calculation</h2>
-                    </div>
-                    <span class="text-xs bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 font-semibold px-2.5 py-1 rounded-full">Base Formula</span>
+            <div class="flex items-center gap-6 bg-slate-800/80 p-4 rounded-xl border border-slate-700/50">
+                <div class="text-right">
+                    <span class="block text-xs text-slate-400 font-medium">ESTIMATED NET TAKE-HOME</span>
+                    <span class="text-3xl font-black text-brand-400" id="net-pay-display">₱0.00</span>
                 </div>
-
-                <div class="space-y-4">
-                    <!-- Days Worked x Daily Rate Input -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Days Worked (This Cut-off)</label>
-                            <input type="number" id="daysWorked" value="12" min="0" max="31" step="0.5" oninput="calculatePayroll()" class="w-full bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-xl p-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Daily Rate (₱ / Day)</label>
-                            <input type="number" id="dailyRate" value="695" min="0" step="5" oninput="calculatePayroll()" class="w-full bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-xl p-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                        </div>
-                    </div>
-
-                    <!-- Computed Base Wage Display Box -->
-                    <div class="bg-slate-50 dark:bg-slate-700/40 p-4 rounded-xl border border-slate-200/80 dark:border-slate-600/80 space-y-2">
-                        <div class="flex justify-between items-center text-xs">
-                            <span class="text-slate-500 dark:text-slate-400">Days × Rate Calculation:</span>
-                            <span id="basePayFormulaText" class="font-mono font-semibold text-slate-700 dark:text-slate-200">12 Days × ₱695.00</span>
-                        </div>
-                        <div class="flex justify-between items-center text-xs">
-                            <span class="text-slate-500 dark:text-slate-400">Hourly Rate (Daily Rate ÷ 8 hrs):</span>
-                            <span id="computedHourlyRateText" class="font-bold text-brand-600 dark:text-brand-400">₱86.88 / hr</span>
-                        </div>
-                        <div class="pt-2 border-t border-slate-200 dark:border-slate-600 flex justify-between items-center text-sm font-bold">
-                            <span>Computed Base Cut-off Pay:</span>
-                            <span id="computedBasePay" class="text-emerald-600 dark:text-emerald-400">₱8,340.00</span>
-                        </div>
-                    </div>
-
-                    <!-- Additional Fixed Allowances -->
-                    <div class="pt-2 border-t border-slate-100 dark:border-slate-700 space-y-3">
-                        <h3 class="text-xs font-bold uppercase text-slate-400 tracking-wider">Fixed Cut-off Allowances</h3>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Standard Allowance</label>
-                                <input type="number" id="allowanceAmount" value="500" min="0" step="50" oninput="calculatePayroll()" class="w-full bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-xl p-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Fixed Incentive</label>
-                                <input type="number" id="bonusAmount" value="300" min="0" step="50" oninput="calculatePayroll()" class="w-full bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-xl p-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right Module: Date & Time-Slot Overtime Tracker with Offset Window Banner -->
-            <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
-                <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
-                    <div class="flex items-center space-x-2">
-                        <i data-lucide="clock" class="w-5 h-5 text-brand-500"></i>
-                        <h2 class="font-bold text-lg">Overtime Time-Slot Log</h2>
-                    </div>
-                    <button onclick="addOtRow()" class="text-xs bg-brand-600 hover:bg-brand-700 text-white font-semibold px-3 py-1.5 rounded-xl transition flex items-center gap-1 shadow-sm">
-                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add OT Log
-                    </button>
-                </div>
-
-                <!-- Meal Allowance Rule Indicator -->
-                <div class="bg-amber-50 dark:bg-amber-950/40 p-3 rounded-xl border border-amber-200 dark:border-amber-900/60 flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div class="flex items-center space-x-2 text-amber-800 dark:text-amber-300">
-                        <i data-lucide="utensils" class="w-4 h-4 flex-shrink-0"></i>
-                        <span class="font-semibold">Meal Allowance Rule:</span>
-                    </div>
-                    <div class="flex items-center space-x-2">
-                        <span class="text-slate-600 dark:text-slate-300">Reaches/Past:</span>
-                        <input type="time" id="mealThresholdTime" value="20:00" onchange="calculatePayroll()" class="bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 rounded-lg p-1 font-bold text-slate-800 dark:text-slate-200 focus:outline-none">
-                        <span class="text-slate-600 dark:text-slate-300">Grant: ₱</span>
-                        <input type="number" id="mealAllowanceRate" value="30" min="0" step="5" oninput="calculatePayroll()" class="w-14 bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 rounded-lg p-1 font-bold text-center text-slate-800 dark:text-slate-200 focus:outline-none">
-                    </div>
-                </div>
-
-                <!-- Dynamic OT Container -->
-                <div id="otContainer" class="space-y-3 max-h-[350px] overflow-y-auto pr-1 custom-scrollbar">
-                    <!-- Dynamic OT Rows rendered by JS -->
-                </div>
-
-                <!-- Overtime Summary Footer -->
-                <div class="bg-slate-50 dark:bg-slate-700/40 p-3 rounded-xl space-y-1 text-xs">
-                    <div class="flex justify-between items-center text-slate-700 dark:text-slate-200 font-semibold">
-                        <span>Eligible Overtime Earnings (In-Window):</span>
-                        <span id="otTotalPayDisplay" class="font-bold text-brand-600 dark:text-brand-400">0.0 hrs = ₱0.00</span>
-                    </div>
-                    <div class="flex justify-between items-center text-amber-700 dark:text-amber-400 font-medium">
-                        <span>Qualified Overtime Meal Allowances:</span>
-                        <span id="otMealTotalDisplay" class="font-bold">0 shifts × ₱30 = ₱0.00</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- NEW: Dynamic Other Income / Additional Earnings Section -->
-        <section class="no-print bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-5">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700 pb-3">
-                <div class="flex items-center space-x-2">
-                    <div class="p-1.5 bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-lg">
-                        <i data-lucide="trending-up" class="w-5 h-5"></i>
-                    </div>
-                    <div>
-                        <h2 class="font-bold text-lg">Other Income / Additional Earnings</h2>
-                        <p class="text-xs text-slate-400">Add bonuses, commissions, retroactive pay, hazard pay, or custom allowances</p>
-                    </div>
-                </div>
-                
-                <div class="flex items-center space-x-2">
-                    <button onclick="addOtherIncomeRow()" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-1.5 rounded-xl transition flex items-center gap-1 shadow-sm">
-                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Other Income
-                    </button>
-                </div>
-            </div>
-
-            <!-- Quick Preset Adding Buttons -->
-            <div class="flex flex-wrap items-center gap-2 text-xs">
-                <span class="text-slate-400 font-medium text-[11px]">Quick Add Presets:</span>
-                <button onclick="addOtherIncomePreset('Performance Bonus', 1000, 'Bonus')" class="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 rounded-lg font-medium transition flex items-center gap-1">
-                    <i data-lucide="award" class="w-3 h-3"></i> Performance Bonus
-                </button>
-                <button onclick="addOtherIncomePreset('Sales Commission', 1500, 'Commission')" class="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 rounded-lg font-medium transition flex items-center gap-1">
-                    <i data-lucide="dollar-sign" class="w-3 h-3"></i> Commission
-                </button>
-                <button onclick="addOtherIncomePreset('Retroactive Pay', 500, 'Retro Pay')" class="px-2.5 py-1 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 rounded-lg font-medium transition flex items-center gap-1">
-                    <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Retro Pay
-                </button>
-                <button onclick="addOtherIncomePreset('Night Differential', 400, 'Night Diff')" class="px-2.5 py-1 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 rounded-lg font-medium transition flex items-center gap-1">
-                    <i data-lucide="moon" class="w-3 h-3"></i> Night Diff
-                </button>
-                <button onclick="addOtherIncomePreset('Expense Reimbursement', 350, 'Reimbursement')" class="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 rounded-lg font-medium transition flex items-center gap-1">
-                    <i data-lucide="receipt" class="w-3 h-3"></i> Reimbursement
+                <button onclick="saveCurrentPayroll()" class="bg-brand-600 hover:bg-brand-500 text-slate-900 font-bold px-4 py-3 rounded-lg shadow-lg transition flex items-center gap-2">
+                    <i class="fa-solid fa-check"></i>
+                    <span id="summary-save-btn">Save Record</span>
                 </button>
             </div>
+        </div>
 
-            <!-- Other Income Items Container -->
-            <div id="otherIncomeContainer" class="space-y-3 max-h-[280px] overflow-y-auto pr-1 custom-scrollbar">
-                <!-- Dynamically populated rows -->
-            </div>
-
-            <!-- Other Income Total Summary Footer -->
-            <div class="bg-indigo-50/50 dark:bg-indigo-950/20 p-3 rounded-xl flex justify-between items-center text-xs border border-indigo-100 dark:border-indigo-900/40">
-                <span class="font-bold text-indigo-900 dark:text-indigo-300">Total Itemized Other Income (Added to Gross):</span>
-                <span id="otherIncomeTotalDisplay" class="font-extrabold text-indigo-600 dark:text-indigo-400 text-sm">₱0.00</span>
-            </div>
-        </section>
-
-        <!-- Deductions Configurator Section -->
-        <section class="no-print bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-5">
-            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
-                <div class="flex items-center space-x-2">
-                    <i data-lucide="scissors" class="w-5 h-5 text-rose-500"></i>
-                    <h2 class="font-bold text-lg">Deductions & Cash Advance</h2>
-                </div>
-                <button onclick="addCustomDeductionRow()" class="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-semibold px-3 py-1.5 rounded-xl transition flex items-center gap-1">
-                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Custom Loan Line
-                </button>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Standard Statutory Deductions -->
-                <div class="space-y-4">
-                    <div class="bg-slate-50 dark:bg-slate-700/40 p-3 rounded-xl flex items-center justify-between text-xs">
-                        <span class="font-medium text-slate-600 dark:text-slate-300">Statutory Deductions Split:</span>
-                        <select id="deductionSplitRule" onchange="calculatePayroll()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-semibold p-1.5 focus:outline-none">
-                            <option value="cut1_only">Deduct 100% on Cut-off 1 (1-15)</option>
-                            <option value="cut2_only">Deduct 100% on Cut-off 2 (16-31)</option>
-                            <option value="split50" selected>Split 50/50 Across Both Cut-offs</option>
-                        </select>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Withholding Tax Rate (%)</label>
-                            <input type="number" id="taxRate" value="0" min="0" max="100" step="0.5" oninput="calculatePayroll()" class="w-full bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-xl p-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">SSS Contribution (₱/Month)</label>
-                            <input type="number" id="sssAmount" value="450" min="0" step="50" oninput="calculatePayroll()" class="w-full bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-xl p-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">PhilHealth Insurance (₱/Month)</label>
-                            <input type="number" id="healthInsurance" value="300" min="0" step="50" oninput="calculatePayroll()" class="w-full bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-xl p-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Pag-IBIG Provident (₱/Month)</label>
-                            <input type="number" id="providentFund" value="100" min="0" step="50" oninput="calculatePayroll()" class="w-full bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-xl p-2.5 text-sm font-semibold focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Custom Loans / Cash Advance -->
-                <div class="space-y-3 border-t md:border-t-0 md:border-l border-slate-100 dark:border-slate-700 md:pl-6 pt-4 md:pt-0">
-                    <h3 class="text-xs font-bold uppercase text-slate-400 tracking-wider">Custom Deductions & Cash Advance</h3>
-                    <div id="customDeductionsContainer" class="space-y-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
-                        <!-- Populated dynamically -->
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Official Printable Payslip Section -->
-        <section class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-            <div class="no-print p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <!-- Payslip Document View (Print / Previewable) -->
+        <div id="payslip-preview" class="bg-white rounded-xl p-8 shadow-sm border border-slate-200 print-card">
+            <div class="flex justify-between items-start border-b border-slate-200 pb-4 mb-6">
                 <div>
-                    <h2 class="font-bold text-lg">Official Semi-Monthly Payslip Document</h2>
-                    <p class="text-xs text-slate-400">Includes base pay, offset OT time-slots, meal allowances, and itemized other income</p>
+                    <h2 class="text-2xl font-black text-slate-900 tracking-tight">PAYSLIP STATEMENT</h2>
+                    <p class="text-xs text-slate-500 mt-0.5" id="ps-emp-name">Employee: John Doe</p>
                 </div>
-                <div class="flex items-center space-x-3">
-                    <button onclick="saveToHistory()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm rounded-xl transition shadow-md flex items-center gap-2">
-                        <i data-lucide="save" class="w-4 h-4"></i> Save Record
-                    </button>
-                    <button onclick="window.print()" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold text-xs sm:text-sm rounded-xl transition flex items-center gap-2">
-                        <i data-lucide="printer" class="w-4 h-4"></i> Print
-                    </button>
-                    <button onclick="exportPDF()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs sm:text-sm rounded-xl transition shadow-md flex items-center gap-2">
-                        <i data-lucide="download" class="w-4 h-4"></i> Export PDF
-                    </button>
+                <div class="text-right">
+                    <span class="inline-block bg-slate-100 text-slate-800 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 mb-1" id="ps-period-tag">Period</span>
+                    <p class="text-xs text-slate-400" id="ps-generated-date">Issued: --</p>
                 </div>
             </div>
 
-            <!-- Printable Payslip Document Container -->
-            <div class="p-4 sm:p-8 overflow-x-auto">
-                <div id="payslipDocument" class="bg-white text-slate-800 max-w-3xl mx-auto border border-slate-200 rounded-xl p-8 shadow-sm space-y-6">
-                    <!-- Payslip Header -->
-                    <div class="flex justify-between items-start border-b border-slate-200 pb-6">
-                        <div>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-8 h-8 bg-brand-600 text-white rounded-lg flex items-center justify-center font-bold text-sm">PP</div>
-                                <span class="font-bold text-xl text-slate-900">PAYROLL STATEMENT</span>
-                            </div>
-                            <p class="text-xs text-slate-500 mt-1">Semi-Monthly Personal Paystub Record</p>
-                        </div>
-                        <div class="text-right">
-                            <span class="inline-block bg-brand-100 text-brand-800 text-xs font-bold px-3 py-1 rounded-full uppercase" id="psCutoffTag">Cut-off 1 (1-15)</span>
-                            <p class="text-xs text-slate-500 mt-2">Salary Period: <span id="psPeriodDates" class="font-semibold text-slate-700">Sept 1, 2026 – Sept 15, 2026</span></p>
-                            <p class="text-xs text-amber-700 font-medium">OT Cut-off Window: <span id="psOtPeriodDates" class="font-bold">Aug 26, 2026 – Sept 10, 2026</span></p>
-                        </div>
-                    </div>
-
-                    <!-- Profile Info Metadata -->
-                    <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl text-xs">
-                        <div>
-                            <p class="text-slate-400 font-medium uppercase text-[10px]">EMPLOYEE INFORMATION</p>
-                            <p id="psEmpName" class="font-bold text-sm text-slate-800 mt-0.5">Alex Morgan</p>
-                            <p id="psEmpTitle" class="text-slate-600">Technical Staff</p>
-                            <p id="psEmpId" class="text-slate-500 mt-0.5">ID: EMP-2026</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-slate-400 font-medium uppercase text-[10px]">BASE WAGE PARAMETERS</p>
-                            <p class="text-slate-600 mt-0.5">Days Worked: <span id="psDaysWorked" class="font-bold text-slate-800">12 Days</span></p>
-                            <p class="text-slate-600">Daily Rate: <span id="psDailyRate" class="font-semibold text-slate-800">₱695.00</span></p>
-                            <p class="text-slate-600">Hourly Rate: <span id="psHourlyRate" class="font-semibold text-slate-800">₱86.88 / hr</span></p>
-                        </div>
-                    </div>
-
-                    <!-- Earnings and Deductions Table -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Earnings Column -->
-                        <div>
-                            <h4 class="font-bold text-xs uppercase tracking-wider text-slate-500 border-b border-slate-200 pb-2 mb-3">Earnings Breakdown</h4>
-                            <table class="w-full text-xs">
-                                <tbody id="psEarningsTable" class="divide-y divide-slate-100">
-                                    <!-- Dynamic Earnings Rows -->
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <!-- Deductions Column -->
-                        <div>
-                            <h4 class="font-bold text-xs uppercase tracking-wider text-slate-500 border-b border-slate-200 pb-2 mb-3">Deductions & Withholdings</h4>
-                            <table class="w-full text-xs">
-                                <tbody id="psDeductionsTable" class="divide-y divide-slate-100">
-                                    <!-- Dynamic Deductions Rows -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Itemized Other Income Section inside Payslip -->
-                    <div id="psOtherIncomeWrapper" class="border-t border-slate-200 pt-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <h4 class="font-bold text-xs uppercase tracking-wider text-indigo-700">Itemized Other Income & Earnings</h4>
-                            <span id="psOtherIncomeBadge" class="text-[10px] font-bold text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-full">Additional Earnings</span>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-xs text-left">
-                                <thead>
-                                    <tr class="bg-indigo-50/50 text-indigo-900 font-semibold border-b border-indigo-100">
-                                        <th class="py-1.5 px-2">Income Item Description</th>
-                                        <th class="py-1.5 px-2">Type / Category</th>
-                                        <th class="py-1.5 px-2">Date</th>
-                                        <th class="py-1.5 px-2 text-right">Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="psOtherIncomeTable" class="divide-y divide-slate-100">
-                                    <!-- Dynamic Other Income entries -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Overtime Time-Slot Itemized Log Table inside Payslip -->
-                    <div class="border-t border-slate-200 pt-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <h4 class="font-bold text-xs uppercase tracking-wider text-slate-500">Itemized Overtime Log (In OT Window)</h4>
-                            <span id="psOtWindowBadge" class="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">Aug 26 - Sept 10</span>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-xs text-left">
-                                <thead>
-                                    <tr class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-                                        <th class="py-1.5 px-2">Date</th>
-                                        <th class="py-1.5 px-2">Time Slot</th>
-                                        <th class="py-1.5 px-2">Duration</th>
-                                        <th class="py-1.5 px-2">Multiplier</th>
-                                        <th class="py-1.5 px-2 text-center">Meal Bonus</th>
-                                        <th class="py-1.5 px-2 text-right">Computed Pay</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="psOtTable" class="divide-y divide-slate-100">
-                                    <!-- Dynamic OT entries -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Summary Totals Banner -->
-                    <div class="border-t-2 border-slate-800 pt-4 mt-6">
-                        <div class="flex justify-between items-center text-xs py-1">
-                            <span class="font-semibold text-slate-600">Base Wage Pay:</span>
-                            <span id="psBaseTotal" class="font-bold text-slate-900">₱0.00</span>
-                        </div>
-                        <div class="flex justify-between items-center text-xs py-1">
-                            <span class="font-semibold text-slate-600">Total Overtime Pay:</span>
-                            <span id="psOtTotal" class="font-bold text-slate-900">₱0.00</span>
-                        </div>
-                        <div class="flex justify-between items-center text-xs py-1 text-amber-700 font-semibold">
-                            <span>Overtime Meal Allowances Earned:</span>
-                            <span id="psMealTotal" class="font-bold">₱0.00</span>
-                        </div>
-                        <div class="flex justify-between items-center text-xs py-1 text-indigo-700 font-semibold">
-                            <span>Itemized Other Income Total:</span>
-                            <span id="psOtherIncomeTotal" class="font-bold">₱0.00</span>
-                        </div>
-                        <div class="flex justify-between items-center text-xs py-1">
-                            <span class="font-semibold text-slate-600">Fixed Allowances / Incentives:</span>
-                            <span id="psAllowanceTotal" class="font-bold text-slate-900">₱0.00</span>
-                        </div>
-                        <div class="flex justify-between items-center text-xs py-1 text-slate-700 font-bold border-t border-slate-200 mt-1 pt-1">
-                            <span>TOTAL GROSS EARNINGS:</span>
-                            <span id="psGrossTotal" class="text-emerald-700">₱0.00</span>
-                        </div>
-                        <div class="flex justify-between items-center text-xs py-1 text-rose-600 font-medium">
-                            <span>TOTAL DEDUCTIONS:</span>
-                            <span id="psDeductionsTotal">-$0.00</span>
-                        </div>
-                        <div class="flex justify-between items-center text-base py-3 mt-3 bg-slate-900 text-white px-4 rounded-xl">
-                            <span class="font-bold">NET TAKE-HOME PAY:</span>
-                            <span id="psNetTotal" class="font-extrabold text-emerald-400 text-lg">₱0.00</span>
-                        </div>
-                    </div>
-
-                    <!-- Footer Note -->
-                    <div class="text-center pt-4 text-[10px] text-slate-400 border-t border-slate-100">
-                        This is a semi-monthly personal paystub record generated automatically. OT cutoff offset rule applied.
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Saved Cut-off Payroll Logs -->
-        <section class="no-print bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 space-y-4">
-            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm">
+                <!-- Earnings Column -->
                 <div>
-                    <h2 class="font-bold text-lg">Saved Payroll Logs</h2>
-                    <p class="text-xs text-slate-400">Stored history of semi-monthly pay periods</p>
+                    <h3 class="font-bold text-xs uppercase tracking-wider text-slate-400 border-b border-slate-200 pb-2 mb-3">Earnings & Allowances</h3>
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-slate-700">
+                            <span>Base Salary (<span id="ps-days">0</span> days @ ₱<span id="ps-daily-rate">0</span>)</span>
+                            <span class="font-semibold" id="ps-base-pay">₱0.00</span>
+                        </div>
+                        <div class="flex justify-between text-slate-700">
+                            <span>Overtime Pay & Meal Bonuses</span>
+                            <span class="font-semibold" id="ps-ot-pay">₱0.00</span>
+                        </div>
+                        <div id="ps-income-list" class="space-y-1">
+                            <!-- Dynamic items -->
+                        </div>
+                        <div class="flex justify-between font-bold text-slate-900 pt-2 border-t border-slate-100">
+                            <span>GROSS EARNINGS</span>
+                            <span id="ps-gross-pay">₱0.00</span>
+                        </div>
+                    </div>
                 </div>
-                <button onclick="clearHistory()" class="text-xs text-rose-500 hover:text-rose-600 font-semibold flex items-center gap-1">
-                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear All History
+
+                <!-- Deductions Column -->
+                <div>
+                    <h3 class="font-bold text-xs uppercase tracking-wider text-slate-400 border-b border-slate-200 pb-2 mb-3">Deductions</h3>
+                    <div id="ps-deductions-list" class="space-y-2 text-slate-700">
+                        <!-- Dynamic items -->
+                    </div>
+                    <div class="flex justify-between font-bold text-slate-900 pt-2 border-t border-slate-100 mt-2">
+                        <span>TOTAL DEDUCTIONS</span>
+                        <span id="ps-total-deductions" class="text-rose-600">₱0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Net Pay Box -->
+            <div class="mt-8 pt-4 border-t-2 border-slate-900 flex justify-between items-center bg-slate-50 p-4 rounded-lg">
+                <div>
+                    <span class="block text-xs font-bold text-slate-500 uppercase">Total Net Payment</span>
+                    <span class="text-xs text-slate-400">Direct Deposit / Cash</span>
+                </div>
+                <span class="text-2xl font-black text-slate-900" id="ps-net-pay">₱0.00</span>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-2 no-print">
+                <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-print"></i> Print Payslip / Save PDF
                 </button>
             </div>
+        </div>
 
-            <div class="overflow-x-auto custom-scrollbar">
-                <table class="w-full text-left text-xs sm:text-sm">
+        <!-- Saved Payroll Logs Section -->
+        <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200 no-print space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-history text-brand-600"></i> Saved Payroll Logs & History
+                    </h2>
+                    <p class="text-xs text-slate-500">View, Edit, or Print previously recorded payroll calculations</p>
+                </div>
+                <div class="text-xs text-slate-500">
+                    Total Records: <span id="record-count" class="font-bold text-slate-800">0</span>
+                </div>
+            </div>
+
+            <!-- Log Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm">
                     <thead>
-                        <tr class="text-slate-400 border-b border-slate-200 dark:border-slate-700 uppercase font-semibold text-[11px]">
-                            <th class="pb-3 px-2">Cycle</th>
-                            <th class="pb-3 px-2">Salary Period</th>
-                            <th class="pb-3 px-2">OT Window</th>
-                            <th class="pb-3 px-2">Days & Rate</th>
-                            <th class="pb-3 px-2">OT Pay</th>
-                            <th class="pb-3 px-2">Other Income</th>
-                            <th class="pb-3 px-2">Net Pay</th>
-                            <th class="pb-3 px-2 text-right">Actions</th>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                            <th class="p-3">Period</th>
+                            <th class="p-3">Employee</th>
+                            <th class="p-3">Days</th>
+                            <th class="p-3">Gross Pay</th>
+                            <th class="p-3">Deductions</th>
+                            <th class="p-3">Net Pay</th>
+                            <th class="p-3 text-center">Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="historyTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/50">
-                        <!-- Populated dynamically -->
+                    <tbody id="payroll-logs-body" class="divide-y divide-slate-100">
+                        <!-- Dynamic Records -->
                     </tbody>
                 </table>
             </div>
-        </section>
+        </div>
 
     </main>
 
-    <!-- JavaScript Application Logic -->
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 px-6 text-center text-xs text-slate-500 no-print">
+        Personal Semi-Monthly Payroll System &bull; Local Storage Secured &bull; Free Utility
+    </footer>
+
+    <!-- JavaScript Logic -->
     <script>
-        // Initial Overtime Logs
-        let overtimeLogs = [
-            { id: 'ot_1', date: '2026-08-28', startTime: '18:00', endTime: '20:00', multiplier: 1.25, note: '6PM to 8PM Regular OT' },
-            { id: 'ot_2', date: '2026-09-02', startTime: '17:00', endTime: '21:00', multiplier: 1.30, note: 'Rest Day OT' },
-            { id: 'ot_3', date: '2026-09-08', startTime: '18:00', endTime: '19:30', multiplier: 1.25, note: 'Short OT' }
-        ];
+        // State variables
+        let editingRecordId = null; // Stores record ID when in Edit Mode
+        let otRowCounter = 0;
+        let incomeRowCounter = 0;
+        let deductionRowCounter = 0;
 
-        // NEW: Other Income / Additional Earnings State
-        let otherIncomeLogs = [
-            { id: 'inc_1', name: 'Performance Incentive', category: 'Bonus', date: '2026-09-05', amount: 1000 },
-            { id: 'inc_2', name: 'Client Project Commission', category: 'Commission', date: '2026-09-10', amount: 750 }
-        ];
-
-        // Custom Deductions State
-        let customDeductions = [
-            { id: 'cd_1', name: 'Cash Advance / Loan', amount: 500, applyRule: 'cut1_only' }
-        ];
-
-        // Global OT Cutoff Range State
-        let currentOtRange = {
-            startDateStr: '',
-            endDateStr: '',
-            displayText: ''
-        };
-
-        // Window Load Handler
+        // Initialize App on Load
         window.onload = function() {
-            lucide.createIcons();
+            // Set current month to input
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            document.getElementById('pay-month').value = `${year}-${month}`;
 
-            // Set default date month to September 2026 or Current Month
-            const today = new Date();
-            const yearMonth = today.toISOString().slice(0, 7);
-            document.getElementById('payPeriodMonth').value = yearMonth;
+            // Add default initial dynamic rows
+            addOtRow();
+            addIncomeRow('Meal Allowance (Fixed)', 0);
 
-            loadSavedAppData();
-            updateCutoffDates();
-            renderOtRows();
-            renderOtherIncomeRows();
-            renderCustomDeductionInputs();
+            // Update info labels & calculate
+            updateOtRulesInfo();
             calculatePayroll();
-            renderHistoryTable();
+            renderSavedLogs();
         };
 
-        // Dark Mode Toggle
-        function toggleDarkMode() {
-            const html = document.documentElement;
-            if (html.classList.contains('dark')) {
-                html.classList.remove('dark');
-                localStorage.setItem('payroll_theme', 'light');
-            } else {
-                html.classList.add('dark');
-                localStorage.setItem('payroll_theme', 'dark');
-            }
+        // Helper to format currency
+        function fmt(num) {
+            return '₱' + (parseFloat(num) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
-        // Avatar Image Upload
-        function loadAvatar(event) {
-            const reader = new FileReader();
-            reader.onload = function() {
-                document.getElementById('profileAvatar').src = reader.result;
-            };
-            if(event.target.files[0]) {
-                reader.readAsDataURL(event.target.files[0]);
-            }
+        // Display Toast Feedback
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const bgColor = type === 'success' ? 'bg-slate-900 text-emerald-400 border-emerald-500' : 'bg-slate-900 text-amber-400 border-amber-500';
+            const icon = type === 'success' ? 'fa-circle-check text-emerald-400' : 'fa-circle-info text-amber-400';
+
+            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-sm font-medium transition-all duration-300 transform translate-y-2 opacity-0 ${bgColor}`;
+            toast.innerHTML = `<i class="fa-solid ${icon} text-base"></i> <span>${message}</span>`;
+            
+            container.appendChild(toast);
+
+            // Trigger animation
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
         }
 
-        // Helper: Convert 24-hour time "18:00" to minutes from midnight
-        function timeToMinutes(timeStr) {
-            if (!timeStr) return 0;
-            const [h, m] = timeStr.split(':').map(Number);
-            return (h * 60) + (m || 0);
-        }
+        // Update Overtime Cutoff Window Text based on selection
+        function updateOtRulesInfo() {
+            const cutoff = document.getElementById('cutoff-period').value;
+            const monthVal = document.getElementById('pay-month').value;
+            const infoText = document.getElementById('ot-range-text');
 
-        // Helper: Format 24-hour time to 12-hour AM/PM string (e.g. 18:00 -> 6:00 PM)
-        function format12Hour(timeStr) {
-            if (!timeStr) return '';
-            let [h, m] = timeStr.split(':').map(Number);
-            const ampm = h >= 12 ? 'PM' : 'AM';
-            h = h % 12;
-            h = h ? h : 12;
-            const mStr = m < 10 ? '0' + m : m;
-            return `${h}:${mStr} ${ampm}`;
-        }
-
-        // Helper: Calculate OT Duration
-        function calculateOtDurationHours(startTimeStr, endTimeStr) {
-            let startMins = timeToMinutes(startTimeStr);
-            let endMins = timeToMinutes(endTimeStr);
-
-            if (endMins < startMins) {
-                endMins += 24 * 60;
-            }
-
-            const diffMins = endMins - startMins;
-            return Math.max(0, diffMins / 60);
-        }
-
-        // Helper: Check if OT reaches/passes Meal Allowance threshold
-        function qualifiesForMealAllowance(startTimeStr, endTimeStr, thresholdTimeStr) {
-            let startMins = timeToMinutes(startTimeStr);
-            let endMins = timeToMinutes(endTimeStr);
-            let thresholdMins = timeToMinutes(thresholdTimeStr);
-
-            if (endMins < startMins) {
-                endMins += 24 * 60;
-            }
-
-            return (endMins >= thresholdMins) && (endMins > startMins);
-        }
-
-        // OFFSET OT CUT-OFF ENGINE
-        function updateCutoffDates() {
-            const monthVal = document.getElementById('payPeriodMonth').value;
-            const cutoffVal = document.getElementById('cutoffSelection').value;
             if (!monthVal) return;
 
-            const [year, month] = monthVal.split('-').map(Number); // month is 1-indexed
-            const monthName = new Date(year, month - 1, 1).toLocaleString('default', { month: 'short' });
-            const fullMonthName = new Date(year, month - 1, 1).toLocaleString('default', { month: 'long' });
+            const [year, month] = monthVal.split('-').map(Number);
+            const dateObj = new Date(year, month - 1, 1);
 
-            let salaryRangeText = '';
-            let cardTitleText = '';
-
-            if (cutoffVal === 'cut1') {
-                // Salary Period: Month 1 to 15
-                salaryRangeText = `${fullMonthName} 1, ${year} – ${fullMonthName} 15, ${year}`;
-                cardTitleText = `Net Take-Home (1-15 ${monthName})`;
-
-                // OT Cut-off: 26th of Previous Month to 10th of Current Month
-                const prevMonthDate = new Date(year, month - 2, 26);
-                const prevMonthName = prevMonthDate.toLocaleString('default', { month: 'short' });
-                const prevYear = prevMonthDate.getFullYear();
-
-                const otStartDateStr = `${prevYear}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-26`;
-                const otEndDateStr = `${year}-${String(month).padStart(2, '0')}-10`;
-
-                currentOtRange.startDateStr = otStartDateStr;
-                currentOtRange.endDateStr = otEndDateStr;
-                currentOtRange.displayText = `${prevMonthName} 26, ${prevYear} to ${monthName} 10, ${year}`;
-
+            if (cutoff === "1") {
+                // 1st salary cut-off (1–15): OT range is 26th prev month to 10th current month
+                const prevMonthObj = new Date(year, month - 2, 1);
+                const prevMonthName = prevMonthObj.toLocaleString('default', { month: 'short' });
+                const currMonthName = dateObj.toLocaleString('default', { month: 'short' });
+                infoText.innerHTML = `<strong>1st Cut-off OT Window:</strong> Overtime dates for this period should fall between <strong>${prevMonthName} 26</strong> and <strong>${currMonthName} 10</strong>.`;
             } else {
-                // Salary Period: Month 16 to EOM
-                const lastDay = new Date(year, month, 0).getDate();
-                salaryRangeText = `${fullMonthName} 16, ${year} – ${fullMonthName} ${lastDay}, ${year}`;
-                cardTitleText = `Net Take-Home (16-${lastDay} ${monthName})`;
-
-                // OT Cut-off: 11th of Current Month to 25th of Current Month
-                const otStartDateStr = `${year}-${String(month).padStart(2, '0')}-11`;
-                const otEndDateStr = `${year}-${String(month).padStart(2, '0')}-25`;
-
-                currentOtRange.startDateStr = otStartDateStr;
-                currentOtRange.endDateStr = otEndDateStr;
-                currentOtRange.displayText = `${monthName} 11, ${year} to ${monthName} 25, ${year}`;
+                // 2nd salary cut-off (16–EOM): OT range is 11th to 25th of current month
+                const currMonthName = dateObj.toLocaleString('default', { month: 'short' });
+                infoText.innerHTML = `<strong>2nd Cut-off OT Window:</strong> Overtime dates for this period should fall between <strong>${currMonthName} 11</strong> and <strong>${currMonthName} 25</strong>.`;
             }
-
-            document.getElementById('dateRangeDisplay').innerText = salaryRangeText;
-            document.getElementById('cutCardTitle').innerText = cardTitleText;
-            document.getElementById('otCutoffRangeText').innerText = currentOtRange.displayText;
-            
-            // Update Payslip OT Window badges
-            document.getElementById('psOtPeriodDates').innerText = currentOtRange.displayText;
-            document.getElementById('psOtWindowBadge').innerText = currentOtRange.displayText;
-
-            renderOtRows();
         }
 
-        // Render OT Row Items
-        function renderOtRows() {
-            const container = document.getElementById('otContainer');
-            container.innerHTML = '';
+        // Add dynamic OT row
+        function addOtRow(date = '', startTime = '18:00', endTime = '20:00') {
+            otRowCounter++;
+            const id = otRowCounter;
+            const container = document.getElementById('ot-rows-container');
 
-            if (overtimeLogs.length === 0) {
-                container.innerHTML = `<div class="text-center py-6 text-xs text-slate-400">No overtime logged for this period. Click "+ Add OT Log" above.</div>`;
-                return;
-            }
-
-            const thresholdTime = document.getElementById('mealThresholdTime') ? document.getElementById('mealThresholdTime').value : '20:00';
-            const mealRate = document.getElementById('mealAllowanceRate') ? parseFloat(document.getElementById('mealAllowanceRate').value) || 30 : 30;
-
-            overtimeLogs.forEach((item, index) => {
-                const computedHrs = calculateOtDurationHours(item.startTime, item.endTime);
-                const getsMeal = qualifiesForMealAllowance(item.startTime, item.endTime, thresholdTime);
-                const isInOtWindow = (item.date >= currentOtRange.startDateStr && item.date <= currentOtRange.endDateStr);
-
-                const div = document.createElement('div');
-                div.className = `p-3 rounded-xl border text-xs transition space-y-2 ${
-                    !isInOtWindow 
-                        ? 'bg-slate-100 dark:bg-slate-800/80 border-slate-300 dark:border-slate-700 opacity-75' 
-                        : getsMeal 
-                            ? 'bg-amber-50/70 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800/60' 
-                            : 'bg-slate-50 dark:bg-slate-700/40 border-slate-200/80 dark:border-slate-600/80'
-                }`;
-                
-                div.innerHTML = `
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                        <div class="flex items-center space-x-2">
-                            <input type="date" value="${item.date}" onchange="updateOtLog(${index}, 'date', this.value)" class="bg-white dark:bg-slate-800 border ${!isInOtWindow ? 'border-rose-400 text-rose-600 font-bold' : 'border-slate-200 dark:border-slate-600'} rounded-lg p-1.5 font-semibold focus:outline-none">
-                            <select onchange="updateOtLog(${index}, 'multiplier', parseFloat(this.value))" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg p-1.5 font-semibold focus:outline-none">
-                                <option value="1.25" ${item.multiplier === 1.25 ? 'selected' : ''}>1.25x (Regular OT)</option>
-                                <option value="1.30" ${item.multiplier === 1.30 ? 'selected' : ''}>1.30x (Rest Day OT)</option>
-                                <option value="1.50" ${item.multiplier === 1.50 ? 'selected' : ''}>1.50x (Holiday OT)</option>
-                                <option value="2.00" ${item.multiplier === 2.00 ? 'selected' : ''}>2.00x (Double Holiday)</option>
-                            </select>
-                        </div>
-
-                        <div class="flex items-center space-x-2">
-                            ${!isInOtWindow ? `<span class="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-semibold text-[10px] px-2 py-0.5 rounded-md flex items-center gap-1"><i data-lucide="alert-circle" class="w-3 h-3 text-amber-500"></i> Outside OT Window</span>` : ''}
-                            ${(isInOtWindow && getsMeal) ? `<span class="bg-amber-500 text-white font-bold text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1"><i data-lucide="utensils" class="w-3 h-3"></i> +₱${mealRate} Meal Bonus</span>` : ''}
-                            <button onclick="removeOtLog(${index})" class="p-1 text-rose-500 hover:text-rose-700">
-                                <i data-lucide="x" class="w-4 h-4"></i>
-                            </button>
-                        </div>
+            const row = document.createElement('div');
+            row.id = `ot-row-${id}`;
+            row.className = "grid grid-cols-12 gap-2 items-center bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs";
+            row.innerHTML = `
+                <div class="col-span-4 sm:col-span-3">
+                    <label class="block text-[10px] font-semibold text-slate-400">Date</label>
+                    <input type="date" value="${date}" class="ot-date w-full border border-slate-300 rounded p-1 text-xs" onchange="calculatePayroll()">
+                </div>
+                <div class="col-span-3 sm:col-span-2">
+                    <label class="block text-[10px] font-semibold text-slate-400">Start</label>
+                    <input type="time" value="${startTime}" class="ot-start w-full border border-slate-300 rounded p-1 text-xs" onchange="calculatePayroll()">
+                </div>
+                <div class="col-span-3 sm:col-span-2">
+                    <label class="block text-[10px] font-semibold text-slate-400">End</label>
+                    <input type="time" value="${endTime}" class="ot-end w-full border border-slate-300 rounded p-1 text-xs" onchange="calculatePayroll()">
+                </div>
+                <div class="col-span-12 sm:col-span-4 flex items-center justify-between gap-1 mt-1 sm:mt-0">
+                    <div class="text-[11px]">
+                        <span class="ot-hours font-bold text-slate-700">0 hrs</span>
+                        <span class="ot-meal font-semibold text-emerald-600 block text-[10px]"></span>
                     </div>
-
-                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 items-center bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-100 dark:border-slate-700">
-                        <div>
-                            <span class="block text-[10px] text-slate-400 font-semibold uppercase">Start Time</span>
-                            <input type="time" value="${item.startTime}" onchange="updateOtLog(${index}, 'startTime', this.value)" class="w-full bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded p-1 font-bold text-slate-800 dark:text-slate-200 focus:outline-none">
-                        </div>
-                        <div>
-                            <span class="block text-[10px] text-slate-400 font-semibold uppercase">End Time</span>
-                            <input type="time" value="${item.endTime}" onchange="updateOtLog(${index}, 'endTime', this.value)" class="w-full bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded p-1 font-bold text-slate-800 dark:text-slate-200 focus:outline-none">
-                        </div>
-                        <div class="col-span-2 sm:col-span-1 text-right sm:text-left">
-                            <span class="block text-[10px] text-slate-400 font-semibold uppercase">Duration</span>
-                            <span class="font-bold text-brand-600 dark:text-brand-400 text-sm">${computedHrs.toFixed(1)} hrs</span>
-                        </div>
+                    <div class="flex items-center gap-2">
+                        <span class="ot-amount font-bold text-slate-800">₱0.00</span>
+                        <button onclick="removeRow('ot-row-${id}')" class="text-slate-400 hover:text-rose-500 p-1"><i class="fa-solid fa-trash-can"></i></button>
                     </div>
-                `;
-                container.appendChild(div);
-            });
-            lucide.createIcons();
-        }
-
-        function addOtRow() {
-            const defaultDate = currentOtRange.startDateStr || new Date().toISOString().slice(0, 10);
-            overtimeLogs.push({ id: 'ot_' + Date.now(), date: defaultDate, startTime: '18:00', endTime: '20:00', multiplier: 1.25, note: '6PM to 8PM Regular OT' });
-            renderOtRows();
+                </div>
+            `;
+            container.appendChild(row);
             calculatePayroll();
         }
 
-        function updateOtLog(index, key, value) {
-            overtimeLogs[index][key] = value;
-            renderOtRows();
+        // Add dynamic Income Row
+        function addIncomeRow(label = '', amount = 0) {
+            incomeRowCounter++;
+            const id = incomeRowCounter;
+            const container = document.getElementById('income-rows-container');
+
+            const row = document.createElement('div');
+            row.id = `income-row-${id}`;
+            row.className = "flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200 text-xs";
+            row.innerHTML = `
+                <input type="text" placeholder="Allowance / Bonus Name" value="${label}" class="inc-label flex-grow border border-slate-300 rounded px-2 py-1 text-xs" oninput="calculatePayroll()">
+                <div class="relative w-28">
+                    <span class="absolute left-2 top-1 text-slate-400 text-[10px]">₱</span>
+                    <input type="number" value="${amount}" min="0" step="0.01" class="inc-amount w-full border border-slate-300 rounded pl-5 pr-1 py-1 text-xs text-right font-medium" oninput="calculatePayroll()">
+                </div>
+                <button onclick="removeRow('income-row-${id}')" class="text-slate-400 hover:text-rose-500 p-1"><i class="fa-solid fa-trash-can"></i></button>
+            `;
+            container.appendChild(row);
             calculatePayroll();
         }
 
-        function removeOtLog(index) {
-            overtimeLogs.splice(index, 1);
-            renderOtRows();
+        // Add dynamic Deduction Row
+        function addDeductionRow(label = '', amount = 0) {
+            deductionRowCounter++;
+            const id = deductionRowCounter;
+            const container = document.getElementById('deduction-rows-container');
+
+            const row = document.createElement('div');
+            row.id = `ded-row-${id}`;
+            row.className = "flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200 text-xs";
+            row.innerHTML = `
+                <input type="text" placeholder="Custom Deduction (e.g., Late, Loan)" value="${label}" class="custom-ded-label flex-grow border border-slate-300 rounded px-2 py-1 text-xs" oninput="calculatePayroll()">
+                <div class="relative w-28">
+                    <span class="absolute left-2 top-1 text-slate-400 text-[10px]">₱</span>
+                    <input type="number" value="${amount}" min="0" step="0.01" class="custom-ded-amount w-full border border-slate-300 rounded pl-5 pr-1 py-1 text-xs text-right font-medium" oninput="calculatePayroll()">
+                </div>
+                <button onclick="removeRow('ded-row-${id}')" class="text-slate-400 hover:text-rose-500 p-1"><i class="fa-solid fa-trash-can"></i></button>
+            `;
+            container.appendChild(row);
             calculatePayroll();
         }
 
-        // NEW: OTHER INCOME / ADDITIONAL EARNINGS HANDLERS
-        function renderOtherIncomeRows() {
-            const container = document.getElementById('otherIncomeContainer');
-            container.innerHTML = '';
-
-            if (otherIncomeLogs.length === 0) {
-                container.innerHTML = `<div class="text-center py-6 text-xs text-slate-400">No additional income added. Use quick presets above or click "+ Add Other Income".</div>`;
-                return;
-            }
-
-            const todayStr = new Date().toISOString().slice(0, 10);
-
-            otherIncomeLogs.forEach((item, index) => {
-                const div = document.createElement('div');
-                div.className = 'p-3 bg-slate-50 dark:bg-slate-700/40 border border-indigo-100 dark:border-slate-700 rounded-xl text-xs space-y-2';
-                div.innerHTML = `
-                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 items-center">
-                        <div class="sm:col-span-1.5">
-                            <label class="block text-[10px] font-semibold text-slate-400 uppercase mb-0.5">Description</label>
-                            <input type="text" value="${item.name}" onchange="updateOtherIncome(${index}, 'name', this.value)" placeholder="e.g. Sales Incentive" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg p-1.5 font-semibold focus:outline-none">
-                        </div>
-
-                        <div>
-                            <label class="block text-[10px] font-semibold text-slate-400 uppercase mb-0.5">Category</label>
-                            <select onchange="updateOtherIncome(${index}, 'category', this.value)" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg p-1.5 font-semibold focus:outline-none">
-                                <option value="Bonus" ${item.category === 'Bonus' ? 'selected' : ''}>Bonus</option>
-                                <option value="Commission" ${item.category === 'Commission' ? 'selected' : ''}>Commission</option>
-                                <option value="Incentive" ${item.category === 'Incentive' ? 'selected' : ''}>Incentive</option>
-                                <option value="Retro Pay" ${item.category === 'Retro Pay' ? 'selected' : ''}>Retroactive Pay</option>
-                                <option value="Night Diff" ${item.category === 'Night Diff' ? 'selected' : ''}>Night Diff</option>
-                                <option value="Reimbursement" ${item.category === 'Reimbursement' ? 'selected' : ''}>Reimbursement</option>
-                                <option value="Hazard Pay" ${item.category === 'Hazard Pay' ? 'selected' : ''}>Hazard Pay</option>
-                                <option value="Other" ${item.category === 'Other' ? 'selected' : ''}>Other Allowance</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="block text-[10px] font-semibold text-slate-400 uppercase mb-0.5">Date</label>
-                            <input type="date" value="${item.date || todayStr}" onchange="updateOtherIncome(${index}, 'date', this.value)" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg p-1.5 font-semibold focus:outline-none">
-                        </div>
-
-                        <div class="flex items-center space-x-2">
-                            <div class="flex-1">
-                                <label class="block text-[10px] font-semibold text-indigo-500 uppercase mb-0.5">Amount (₱)</label>
-                                <input type="number" value="${item.amount}" min="0" step="50" oninput="updateOtherIncome(${index}, 'amount', parseFloat(this.value) || 0)" placeholder="0.00" class="w-full bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-800 rounded-lg p-1.5 font-bold text-indigo-600 dark:text-indigo-400 focus:outline-none">
-                            </div>
-                            <button onclick="removeOtherIncome(${index})" class="p-1 text-rose-500 hover:text-rose-700 mt-3">
-                                <i data-lucide="x" class="w-4 h-4"></i>
-                            </button>
-                        </div>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-            lucide.createIcons();
-        }
-
-        function addOtherIncomeRow() {
-            const todayStr = new Date().toISOString().slice(0, 10);
-            otherIncomeLogs.push({ id: 'inc_' + Date.now(), name: 'Special Allowance', category: 'Incentive', date: todayStr, amount: 500 });
-            renderOtherIncomeRows();
+        // Remove a dynamic row
+        function removeRow(rowId) {
+            const el = document.getElementById(rowId);
+            if (el) el.remove();
             calculatePayroll();
         }
 
-        function addOtherIncomePreset(name, amount, category) {
-            const todayStr = new Date().toISOString().slice(0, 10);
-            otherIncomeLogs.push({ id: 'inc_' + Date.now(), name: name, category: category, date: todayStr, amount: amount });
-            renderOtherIncomeRows();
-            calculatePayroll();
-        }
-
-        function updateOtherIncome(index, key, value) {
-            otherIncomeLogs[index][key] = value;
-            calculatePayroll();
-        }
-
-        function removeOtherIncome(index) {
-            otherIncomeLogs.splice(index, 1);
-            renderOtherIncomeRows();
-            calculatePayroll();
-        }
-
-        // Custom Deductions Handler
-        function renderCustomDeductionInputs() {
-            const container = document.getElementById('customDeductionsContainer');
-            container.innerHTML = '';
-
-            customDeductions.forEach((item, index) => {
-                const div = document.createElement('div');
-                div.className = 'flex items-center gap-2 text-xs';
-                div.innerHTML = `
-                    <input type="text" value="${item.name}" onchange="updateCustomDeduction(${index}, 'name', this.value)" placeholder="Loan / Item Name" class="flex-1 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-xl p-2 font-medium focus:outline-none">
-                    <input type="number" value="${item.amount}" min="0" step="10" oninput="updateCustomDeduction(${index}, 'amount', parseFloat(this.value) || 0)" placeholder="Amount" class="w-20 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-xl p-2 font-semibold focus:outline-none">
-                    <select onchange="updateCustomDeduction(${index}, 'applyRule', this.value)" class="bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-xl p-2 text-[11px] font-semibold focus:outline-none">
-                        <option value="cut1_only" ${item.applyRule === 'cut1_only' ? 'selected' : ''}>Cut 1 Only</option>
-                        <option value="cut2_only" ${item.applyRule === 'cut2_only' ? 'selected' : ''}>Cut 2 Only</option>
-                        <option value="split50" ${item.applyRule === 'split50' ? 'selected' : ''}>Split 50/50</option>
-                    </select>
-                    <button onclick="removeCustomDeduction(${index})" class="text-rose-500 hover:text-rose-700 p-1">
-                        <i data-lucide="x" class="w-4 h-4"></i>
-                    </button>
-                `;
-                container.appendChild(div);
-            });
-            lucide.createIcons();
-        }
-
-        function addCustomDeductionRow() {
-            customDeductions.push({ id: 'cd_' + Date.now(), name: 'Company Loan', amount: 0, applyRule: 'cut1_only' });
-            renderCustomDeductionInputs();
-            calculatePayroll();
-        }
-
-        function updateCustomDeduction(index, key, value) {
-            customDeductions[index][key] = value;
-            calculatePayroll();
-        }
-
-        function removeCustomDeduction(index) {
-            customDeductions.splice(index, 1);
-            renderCustomDeductionInputs();
-            calculatePayroll();
-        }
-
-        // CORE PAYROLL CALCULATION ENGINE
+        // Main Calculation Engine
         function calculatePayroll() {
-            const currency = document.getElementById('currencySymbol').value;
-            const daysWorked = parseFloat(document.getElementById('daysWorked').value) || 0;
-            const dailyRate = parseFloat(document.getElementById('dailyRate').value) || 0;
-            const currentCutoff = document.getElementById('cutoffSelection').value;
-            const deductionSplitRule = document.getElementById('deductionSplitRule').value;
+            const dailyRate = parseFloat(document.getElementById('daily-rate').value) || 0;
+            const daysWorked = parseFloat(document.getElementById('days-worked').value) || 0;
 
-            const mealThresholdTime = document.getElementById('mealThresholdTime').value || '20:00';
-            const mealAllowanceRate = parseFloat(document.getElementById('mealAllowanceRate').value) || 30;
-
-            // 1. Calculate Base Wage & Hourly Rate
+            // Hourly rate calculation (Standard 8-hour workday)
             const hourlyRate = dailyRate / 8;
-            const basePay = daysWorked * dailyRate;
+            document.getElementById('hourly-rate-display').textContent = fmt(hourlyRate) + ' / hr';
 
-            document.getElementById('basePayFormulaText').innerText = `${daysWorked} Days × ${currency}${dailyRate.toFixed(2)}`;
-            document.getElementById('computedHourlyRateText').innerText = `${currency}${hourlyRate.toFixed(2)} / hr`;
-            document.getElementById('computedBasePay').innerText = `${currency}${basePay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            // 1. Base Pay
+            const basePay = dailyRate * daysWorked;
+            document.getElementById('base-pay-display').textContent = fmt(basePay);
 
-            // 2. Overtime & Meal Allowance Calculation (FILTERED BY ACTIVE OT WINDOW)
-            let totalOtHours = 0;
+            // 2. Overtime & Meal Allowance Loop
             let totalOtPay = 0;
-            let totalMealCount = 0;
-            let otCalculatedList = [];
+            let totalMealAllowance = 0;
 
-            overtimeLogs.forEach(log => {
-                const isInWindow = (log.date >= currentOtRange.startDateStr && log.date <= currentOtRange.endDateStr);
-                
-                if (isInWindow) {
-                    const duration = calculateOtDurationHours(log.startTime, log.endTime);
-                    const itemPay = duration * (hourlyRate * log.multiplier);
-                    const getsMeal = qualifiesForMealAllowance(log.startTime, log.endTime, mealThresholdTime);
+            const otRows = document.querySelectorAll('#ot-rows-container > div');
+            otRows.forEach(row => {
+                const startTime = row.querySelector('.ot-start').value;
+                const endTime = row.querySelector('.ot-end').value;
+                const hoursLabel = row.querySelector('.ot-hours');
+                const mealLabel = row.querySelector('.ot-meal');
+                const amountLabel = row.querySelector('.ot-amount');
 
-                    totalOtHours += duration;
-                    totalOtPay += itemPay;
-                    if (getsMeal) {
-                        totalMealCount++;
+                if (startTime && endTime) {
+                    const [sH, sM] = startTime.split(':').map(Number);
+                    const [eH, eM] = endTime.split(':').map(Number);
+
+                    let startMinutes = sH * 60 + sM;
+                    let endMinutes = eH * 60 + eM;
+
+                    if (endMinutes < startMinutes) endMinutes += 24 * 60; // Handle midnight overlap
+
+                    const durationHrs = (endMinutes - startMinutes) / 60;
+                    const otMultiplier = 1.25; // 125% regular OT
+                    const otPay = durationHrs * hourlyRate * otMultiplier;
+
+                    // Check for Meal Allowance Trigger: Reaches or passes 8:00 PM (20:00 = 1200 mins)
+                    let getsMeal = false;
+                    if (endMinutes >= 1200) {
+                        getsMeal = true;
+                        totalMealAllowance += 30;
                     }
 
-                    otCalculatedList.push({
-                        date: log.date,
-                        timeRange: `${format12Hour(log.startTime)} - ${format12Hour(log.endTime)}`,
-                        hours: duration,
-                        multiplier: log.multiplier,
-                        getsMeal: getsMeal,
-                        pay: itemPay
-                    });
+                    totalOtPay += otPay;
+
+                    hoursLabel.textContent = `${durationHrs.toFixed(1)} hrs`;
+                    mealLabel.textContent = getsMeal ? '+₱30 Meal Bonus' : '';
+                    amountLabel.textContent = fmt(otPay + (getsMeal ? 30 : 0));
+                } else {
+                    hoursLabel.textContent = '0 hrs';
+                    mealLabel.textContent = '';
+                    amountLabel.textContent = fmt(0);
                 }
             });
 
-            const totalMealBonusPay = totalMealCount * mealAllowanceRate;
+            const otAndMealTotal = totalOtPay + totalMealAllowance;
+            document.getElementById('total-ot-display').textContent = fmt(otAndMealTotal);
 
-            document.getElementById('otTotalPayDisplay').innerText = `${totalOtHours.toFixed(1)} hrs = ${currency}${totalOtPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            document.getElementById('otMealTotalDisplay').innerText = `${totalMealCount} shift${totalMealCount === 1 ? '' : 's'} × ${currency}${mealAllowanceRate} = ${currency}${totalMealBonusPay.toFixed(2)}`;
-
-            // 3. NEW: Other Income Calculation
+            // 3. Other Income
             let totalOtherIncome = 0;
-            otherIncomeLogs.forEach(item => {
-                totalOtherIncome += (parseFloat(item.amount) || 0);
+            const incomeListForPayslip = [];
+            const incRows = document.querySelectorAll('#income-rows-container > div');
+            incRows.forEach(row => {
+                const label = row.querySelector('.inc-label').value.trim() || 'Additional Pay';
+                const val = parseFloat(row.querySelector('.inc-amount').value) || 0;
+                totalOtherIncome += val;
+                if (val > 0) {
+                    incomeListForPayslip.push({ label, val });
+                }
+            });
+            document.getElementById('total-income-display').textContent = fmt(totalOtherIncome);
+
+            // Gross Pay Total
+            const grossPay = basePay + otAndMealTotal + totalOtherIncome;
+
+            // 4. Deductions
+            const sss = parseFloat(document.getElementById('ded-sss').value) || 0;
+            const philhealth = parseFloat(document.getElementById('ded-philhealth').value) || 0;
+            const pagibig = parseFloat(document.getElementById('ded-pagibig').value) || 0;
+            const tax = parseFloat(document.getElementById('ded-tax').value) || 0;
+
+            let totalCustomDeductions = 0;
+            const deductionsListForPayslip = [
+                { label: 'SSS', val: sss },
+                { label: 'PhilHealth', val: philhealth },
+                { label: 'Pag-IBIG', val: pagibig },
+                { label: 'Withholding Tax', val: tax }
+            ];
+
+            const dedRows = document.querySelectorAll('#deduction-rows-container > div');
+            dedRows.forEach(row => {
+                const label = row.querySelector('.custom-ded-label').value.trim() || 'Other Deduction';
+                const val = parseFloat(row.querySelector('.custom-ded-amount').value) || 0;
+                totalCustomDeductions += val;
+                if (val > 0) {
+                    deductionsListForPayslip.push({ label, val });
+                }
             });
 
-            document.getElementById('otherIncomeTotalDisplay').innerText = `${currency}${totalOtherIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            document.getElementById('cardOtherIncome').innerText = `${currency}${totalOtherIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            document.getElementById('cardOtherIncomeSub').innerText = `${otherIncomeLogs.length} Custom Earning${otherIncomeLogs.length === 1 ? '' : 's'}`;
+            const totalDeductions = sss + philhealth + pagibig + tax + totalCustomDeductions;
+            document.getElementById('total-deductions-display').textContent = fmt(totalDeductions);
 
-            // 4. Gross Earnings Total Equation
-            const allowance = parseFloat(document.getElementById('allowanceAmount').value) || 0;
-            const bonus = parseFloat(document.getElementById('bonusAmount').value) || 0;
-            const totalGross = basePay + totalOtPay + totalMealBonusPay + totalOtherIncome + allowance + bonus;
+            // Net Pay Calculation
+            const netPay = grossPay - totalDeductions;
+            document.getElementById('net-pay-display').textContent = fmt(netPay);
 
-            // 5. Deductions
-            const taxRate = parseFloat(document.getElementById('taxRate').value) || 0;
-            const sssAmount = parseFloat(document.getElementById('sssAmount').value) || 0;
-            const healthInsurance = parseFloat(document.getElementById('healthInsurance').value) || 0;
-            const providentFund = parseFloat(document.getElementById('providentFund').value) || 0;
-
-            const cutTax = totalGross * (taxRate / 100);
-
-            let factor = 0.5;
-            if (deductionSplitRule === 'cut1_only') {
-                factor = currentCutoff === 'cut1' ? 1.0 : 0.0;
-            } else if (deductionSplitRule === 'cut2_only') {
-                factor = currentCutoff === 'cut2' ? 1.0 : 0.0;
-            } else {
-                factor = 0.5;
+            // Title Period String
+            const monthVal = document.getElementById('pay-month').value;
+            const cutoffVal = document.getElementById('cutoff-period').value;
+            let periodFormatted = 'Selected Cut-off';
+            if (monthVal) {
+                const [y, m] = monthVal.split('-');
+                const d = new Date(y, m - 1, 1);
+                const monthName = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+                periodFormatted = `${monthName} - ${cutoffVal === "1" ? "1st Cut-off (1-15)" : "2nd Cut-off (16-EOM)"}`;
             }
+            document.getElementById('summary-period-title').textContent = periodFormatted;
 
-            const cutSSS = sssAmount * factor;
-            const cutHealth = healthInsurance * factor;
-            const cutProvident = providentFund * factor;
-
-            let cutCustomDeductions = 0;
-            let activeCustomItems = [];
-
-            customDeductions.forEach(item => {
-                let itemAmt = 0;
-                if (item.applyRule === 'split50') {
-                    itemAmt = item.amount / 2;
-                } else if (item.applyRule === 'cut1_only' && currentCutoff === 'cut1') {
-                    itemAmt = item.amount;
-                } else if (item.applyRule === 'cut2_only' && currentCutoff === 'cut2') {
-                    itemAmt = item.amount;
-                }
-
-                if (itemAmt > 0) {
-                    cutCustomDeductions += itemAmt;
-                    activeCustomItems.push({ name: item.name, amount: itemAmt });
-                }
-            });
-
-            const totalDeductions = cutTax + cutSSS + cutHealth + cutProvident + cutCustomDeductions;
-            const totalNetPay = Math.max(0, totalGross - totalDeductions);
-
-            // 6. Dashboard Summary Cards
-            document.getElementById('cardCutoffNetPay').innerText = `${currency}${totalNetPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            document.getElementById('cardCutoffGross').innerText = `Gross Earnings: ${currency}${totalGross.toFixed(2)}`;
-            
-            document.getElementById('cardDaysSummary').innerText = `${daysWorked} Days`;
-            document.getElementById('cardRateSummary').innerText = `${currency}${dailyRate.toFixed(2)}/day (${currency}${hourlyRate.toFixed(2)}/hr)`;
-
-            document.getElementById('cardOtPay').innerText = `${currency}${(totalOtPay + totalMealBonusPay).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            document.getElementById('cardMealBonusSummary').innerText = `${totalOtHours.toFixed(1)} hrs OT | ${totalMealCount} Meals (+${currency}${totalMealBonusPay.toFixed(2)})`;
-
-            document.getElementById('cardCutoffDeductions').innerText = `${currency}${totalDeductions.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-            // 7. Update Official Payslip Document View
-            updatePayslipView({
-                currency,
+            // Update Payslip Preview Document
+            updatePayslipPreview({
+                empName: document.getElementById('emp-name').value || 'Employee',
+                period: periodFormatted,
                 daysWorked,
                 dailyRate,
-                hourlyRate,
                 basePay,
-                totalOtHours,
-                totalOtPay,
-                totalMealCount,
-                mealAllowanceRate,
-                totalMealBonusPay,
-                otCalculatedList,
-                totalOtherIncome,
-                allowance,
-                bonus,
-                totalGross,
-                cutTax,
-                taxRate,
-                cutSSS,
-                cutHealth,
-                cutProvident,
-                activeCustomItems,
+                otPay: otAndMealTotal,
+                incomeList: incomeListForPayslip,
+                grossPay,
+                deductionsList: deductionsListForPayslip,
                 totalDeductions,
-                totalNetPay
+                netPay
+            });
+        }
+
+        // Render Live Payslip Document
+        function updatePayslipPreview(data) {
+            document.getElementById('ps-emp-name').textContent = `Employee: ${data.empName}`;
+            document.getElementById('ps-period-tag').textContent = data.period;
+            document.getElementById('ps-generated-date').textContent = `Issued: ${new Date().toLocaleDateString()}`;
+            document.getElementById('ps-days').textContent = data.daysWorked;
+            document.getElementById('ps-daily-rate').textContent = data.dailyRate.toFixed(2);
+            document.getElementById('ps-base-pay').textContent = fmt(data.basePay);
+            document.getElementById('ps-ot-pay').textContent = fmt(data.otPay);
+
+            // Dynamic Income list
+            const incContainer = document.getElementById('ps-income-list');
+            incContainer.innerHTML = '';
+            data.incomeList.forEach(item => {
+                incContainer.innerHTML += `
+                    <div class="flex justify-between text-slate-600 text-xs pl-2 border-l-2 border-emerald-300">
+                        <span>${item.label}</span>
+                        <span>${fmt(item.val)}</span>
+                    </div>
+                `;
             });
 
-            saveAppData();
-        }
+            document.getElementById('ps-gross-pay').textContent = fmt(data.grossPay);
 
-        // Render Official Printable Payslip View
-        function updatePayslipView(data) {
-            const empName = document.getElementById('empName').value || 'Employee';
-            const empTitle = document.getElementById('empTitle').value || 'Staff';
-            const empId = document.getElementById('empId').value || 'EMP-2026';
-            const cutoffVal = document.getElementById('cutoffSelection').value;
-            const dateRangeText = document.getElementById('dateRangeDisplay').innerText;
-
-            document.getElementById('psEmpName').innerText = empName;
-            document.getElementById('psEmpTitle').innerText = empTitle;
-            document.getElementById('psEmpId').innerText = `ID: ${empId}`;
-            document.getElementById('psPeriodDates').innerText = dateRangeText;
-            document.getElementById('psCutoffTag').innerText = cutoffVal === 'cut1' ? 'Cut-off 1 (1 - 15)' : 'Cut-off 2 (16 - EOM)';
-
-            document.getElementById('psDaysWorked').innerText = `${data.daysWorked} Days`;
-            document.getElementById('psDailyRate').innerText = `${data.currency}${data.dailyRate.toFixed(2)} / day`;
-            document.getElementById('psHourlyRate').innerText = `${data.currency}${data.hourlyRate.toFixed(2)} / hr`;
-
-            // Populate Earnings Table
-            const earningsTable = document.getElementById('psEarningsTable');
-            earningsTable.innerHTML = `
-                <tr class="py-1"><td class="py-1 text-slate-600">Base Wage Pay (${data.daysWorked} days × ${data.currency}${data.dailyRate})</td><td class="text-right font-semibold">${data.currency}${data.basePay.toFixed(2)}</td></tr>
-                <tr class="py-1"><td class="py-1 text-slate-600">Total Overtime Pay (${data.totalOtHours.toFixed(1)} hrs)</td><td class="text-right font-semibold">${data.currency}${data.totalOtPay.toFixed(2)}</td></tr>
-                ${data.totalMealBonusPay > 0 ? `<tr class="py-1"><td class="py-1 text-amber-700 font-medium">Overtime Meal Allowances (${data.totalMealCount} shifts @ ${data.currency}${data.mealAllowanceRate})</td><td class="text-right font-semibold text-amber-700">+${data.currency}${data.totalMealBonusPay.toFixed(2)}</td></tr>` : ''}
-                ${data.totalOtherIncome > 0 ? `<tr class="py-1"><td class="py-1 text-indigo-700 font-semibold">Total Itemized Other Income</td><td class="text-right font-bold text-indigo-700">+${data.currency}${data.totalOtherIncome.toFixed(2)}</td></tr>` : ''}
-                ${data.allowance > 0 ? `<tr class="py-1"><td class="py-1 text-slate-600">Transport / Living Allowance</td><td class="text-right font-semibold">${data.currency}${data.allowance.toFixed(2)}</td></tr>` : ''}
-                ${data.bonus > 0 ? `<tr class="py-1"><td class="py-1 text-slate-600">Fixed Incentive</td><td class="text-right font-semibold">${data.currency}${data.bonus.toFixed(2)}</td></tr>` : ''}
-            `;
-
-            // Populate Itemized Other Income Table inside Payslip
-            const otherIncomeTable = document.getElementById('psOtherIncomeTable');
-            if (otherIncomeLogs.length === 0) {
-                document.getElementById('psOtherIncomeWrapper').style.display = 'none';
-            } else {
-                document.getElementById('psOtherIncomeWrapper').style.display = 'block';
-                otherIncomeTable.innerHTML = otherIncomeLogs.map(item => `
-                    <tr>
-                        <td class="py-1.5 px-2 font-medium text-slate-800">${item.name}</td>
-                        <td class="py-1.5 px-2 text-indigo-600 font-semibold">${item.category}</td>
-                        <td class="py-1.5 px-2 text-slate-500">${item.date || '-'}</td>
-                        <td class="py-1.5 px-2 text-right font-bold text-indigo-700">+${data.currency}${(parseFloat(item.amount) || 0).toFixed(2)}</td>
-                    </tr>
-                `).join('');
-            }
-
-            // Populate Deductions Table
-            const deductionsTable = document.getElementById('psDeductionsTable');
-            let customRows = '';
-            data.activeCustomItems.forEach(item => {
-                customRows += `<tr class="py-1"><td class="py-1 text-slate-600">${item.name}</td><td class="text-right font-semibold text-rose-600">-${data.currency}${item.amount.toFixed(2)}</td></tr>`;
+            // Dynamic Deductions list
+            const dedContainer = document.getElementById('ps-deductions-list');
+            dedContainer.innerHTML = '';
+            data.deductionsList.forEach(item => {
+                if (item.val > 0) {
+                    dedContainer.innerHTML += `
+                        <div class="flex justify-between text-slate-700">
+                            <span>${item.label}</span>
+                            <span class="font-semibold text-rose-600">${fmt(item.val)}</span>
+                        </div>
+                    `;
+                }
             });
 
-            deductionsTable.innerHTML = `
-                ${data.cutTax > 0 ? `<tr class="py-1"><td class="py-1 text-slate-600">Withholding Tax (${data.taxRate}%)</td><td class="text-right font-semibold text-rose-600">-${data.currency}${data.cutTax.toFixed(2)}</td></tr>` : ''}
-                ${data.cutSSS > 0 ? `<tr class="py-1"><td class="py-1 text-slate-600">SSS Contribution</td><td class="text-right font-semibold text-rose-600">-${data.currency}${data.cutSSS.toFixed(2)}</td></tr>` : ''}
-                ${data.cutHealth > 0 ? `<tr class="py-1"><td class="py-1 text-slate-600">PhilHealth Insurance</td><td class="text-right font-semibold text-rose-600">-${data.currency}${data.cutHealth.toFixed(2)}</td></tr>` : ''}
-                ${data.cutProvident > 0 ? `<tr class="py-1"><td class="py-1 text-slate-600">Pag-IBIG Provident</td><td class="text-right font-semibold text-rose-600">-${data.currency}${data.cutProvident.toFixed(2)}</td></tr>` : ''}
-                ${customRows}
-            `;
-
-            // Populate Itemized Overtime Table with Time Slots inside Payslip
-            const otTable = document.getElementById('psOtTable');
-            if (data.otCalculatedList.length === 0) {
-                otTable.innerHTML = `<tr><td colspan="6" class="text-center py-2 text-slate-400">No overtime logged inside active OT window (${currentOtRange.displayText}).</td></tr>`;
-            } else {
-                otTable.innerHTML = data.otCalculatedList.map(item => `
-                    <tr>
-                        <td class="py-1.5 px-2 text-slate-700">${item.date}</td>
-                        <td class="py-1.5 px-2 text-slate-700 font-medium">${item.timeRange}</td>
-                        <td class="py-1.5 px-2 text-slate-700 font-semibold">${item.hours.toFixed(1)} hrs</td>
-                        <td class="py-1.5 px-2 text-slate-500">${item.multiplier}x</td>
-                        <td class="py-1.5 px-2 text-center font-bold text-amber-600">${item.getsMeal ? `+${data.currency}${data.mealAllowanceRate}` : '-'}</td>
-                        <td class="py-1.5 px-2 text-right font-semibold text-slate-800">${data.currency}${item.pay.toFixed(2)}</td>
-                    </tr>
-                `).join('');
-            }
-
-            // Summary Totals
-            document.getElementById('psBaseTotal').innerText = `${data.currency}${data.basePay.toFixed(2)}`;
-            document.getElementById('psOtTotal').innerText = `${data.currency}${data.totalOtPay.toFixed(2)}`;
-            document.getElementById('psMealTotal').innerText = `${data.currency}${data.totalMealBonusPay.toFixed(2)}`;
-            document.getElementById('psOtherIncomeTotal').innerText = `${data.currency}${data.totalOtherIncome.toFixed(2)}`;
-            document.getElementById('psAllowanceTotal').innerText = `${data.currency}${(data.allowance + data.bonus).toFixed(2)}`;
-            document.getElementById('psGrossTotal').innerText = `${data.currency}${data.totalGross.toFixed(2)}`;
-            document.getElementById('psDeductionsTotal').innerText = `-${data.currency}${data.totalDeductions.toFixed(2)}`;
-            document.getElementById('psNetTotal').innerText = `${data.currency}${data.totalNetPay.toFixed(2)}`;
+            document.getElementById('ps-total-deductions').textContent = fmt(data.totalDeductions);
+            document.getElementById('ps-net-pay').textContent = fmt(data.netPay);
         }
 
-        // Export PDF Functionality
-        function exportPDF() {
-            const element = document.getElementById('payslipDocument');
-            const empName = document.getElementById('empName').value || 'Employee';
-            const dateRangeText = document.getElementById('dateRangeDisplay').innerText;
+        // Save or Update Payroll Record in LocalStorage
+        function saveCurrentPayroll() {
+            const empName = document.getElementById('emp-name').value.trim() || 'Unknown Employee';
+            const monthVal = document.getElementById('pay-month').value;
+            const cutoffVal = document.getElementById('cutoff-period').value;
+            const dailyRate = parseFloat(document.getElementById('daily-rate').value) || 0;
+            const daysWorked = parseFloat(document.getElementById('days-worked').value) || 0;
 
-            const opt = {
-                margin:       0.3,
-                filename:     `Payslip_${empName.replace(/\s+/g, '_')}_${dateRangeText.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2 },
-                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
-            };
+            // Gather OT Rows Data
+            const otData = [];
+            document.querySelectorAll('#ot-rows-container > div').forEach(row => {
+                otData.push({
+                    date: row.querySelector('.ot-date').value,
+                    startTime: row.querySelector('.ot-start').value,
+                    endTime: row.querySelector('.ot-end').value
+                });
+            });
 
-            html2pdf().set(opt).from(element).save();
-        }
+            // Gather Income Rows Data
+            const incomeData = [];
+            document.querySelectorAll('#income-rows-container > div').forEach(row => {
+                incomeData.push({
+                    label: row.querySelector('.inc-label').value,
+                    amount: parseFloat(row.querySelector('.inc-amount').value) || 0
+                });
+            });
 
-        // Local Storage Persistence
-        function saveAppData() {
-            const data = {
-                empName: document.getElementById('empName').value,
-                empTitle: document.getElementById('empTitle').value,
-                empId: document.getElementById('empId').value,
-                daysWorked: document.getElementById('daysWorked').value,
-                dailyRate: document.getElementById('dailyRate').value,
-                mealThresholdTime: document.getElementById('mealThresholdTime').value,
-                mealAllowanceRate: document.getElementById('mealAllowanceRate').value,
-                allowanceAmount: document.getElementById('allowanceAmount').value,
-                bonusAmount: document.getElementById('bonusAmount').value,
-                taxRate: document.getElementById('taxRate').value,
-                sssAmount: document.getElementById('sssAmount').value,
-                healthInsurance: document.getElementById('healthInsurance').value,
-                providentFund: document.getElementById('providentFund').value,
-                overtimeLogs: overtimeLogs,
-                otherIncomeLogs: otherIncomeLogs,
-                customDeductions: customDeductions
-            };
-            localStorage.setItem('payroll_app_state_income_v4', JSON.stringify(data));
-        }
+            // Gather Custom Deductions
+            const customDedData = [];
+            document.querySelectorAll('#deduction-rows-container > div').forEach(row => {
+                customDedData.push({
+                    label: row.querySelector('.custom-ded-label').value,
+                    amount: parseFloat(row.querySelector('.custom-ded-amount').value) || 0
+                });
+            });
 
-        function loadSavedAppData() {
-            const saved = localStorage.getItem('payroll_app_state_income_v4');
-            if (!saved) return;
-            try {
-                const data = JSON.parse(saved);
-                if (data.empName) document.getElementById('empName').value = data.empName;
-                if (data.empTitle) document.getElementById('empTitle').value = data.empTitle;
-                if (data.empId) document.getElementById('empId').value = data.empId;
-                if (data.daysWorked) document.getElementById('daysWorked').value = data.daysWorked;
-                if (data.dailyRate) document.getElementById('dailyRate').value = data.dailyRate;
-                if (data.mealThresholdTime) document.getElementById('mealThresholdTime').value = data.mealThresholdTime;
-                if (data.mealAllowanceRate) document.getElementById('mealAllowanceRate').value = data.mealAllowanceRate;
-                if (data.allowanceAmount) document.getElementById('allowanceAmount').value = data.allowanceAmount;
-                if (data.bonusAmount) document.getElementById('bonusAmount').value = data.bonusAmount;
-                if (data.taxRate) document.getElementById('taxRate').value = data.taxRate;
-                if (data.sssAmount) document.getElementById('sssAmount').value = data.sssAmount;
-                if (data.healthInsurance) document.getElementById('healthInsurance').value = data.healthInsurance;
-                if (data.providentFund) document.getElementById('providentFund').value = data.providentFund;
-                if (data.overtimeLogs) overtimeLogs = data.overtimeLogs;
-                if (data.otherIncomeLogs) otherIncomeLogs = data.otherIncomeLogs;
-                if (data.customDeductions) customDeductions = data.customDeductions;
-            } catch(e) {
-                console.error("Could not load saved state", e);
-            }
-        }
-
-        // Save Record & History Storage Logic
-        function saveToHistory() {
-            const cutoffVal = document.getElementById('cutoffSelection').value;
-            const days = document.getElementById('daysWorked').value;
-            const rate = document.getElementById('dailyRate').value;
-            const currency = document.getElementById('currencySymbol').value;
+            // Calculate current total snapshot
+            const netPayText = document.getElementById('net-pay-display').textContent;
+            const grossPayText = fmt(
+                (dailyRate * daysWorked) +
+                parseFloat(document.getElementById('total-ot-display').textContent.replace(/[^\d.]/g, '')) +
+                parseFloat(document.getElementById('total-income-display').textContent.replace(/[^\d.]/g, ''))
+            );
+            const totalDeductionsText = document.getElementById('total-deductions-display').textContent;
 
             const record = {
-                id: Date.now(),
-                empName: document.getElementById('empName').value,
-                cycle: cutoffVal === 'cut1' ? 'Cut 1 (1-15)' : 'Cut 2 (16-31)',
-                dateRange: document.getElementById('dateRangeDisplay').innerText,
-                otWindow: currentOtRange.displayText,
-                daysRate: `${days} days @ ${currency}${rate}/day`,
-                otPay: document.getElementById('psOtTotal').innerText,
-                otherIncome: document.getElementById('psOtherIncomeTotal').innerText,
-                net: document.getElementById('psNetTotal').innerText
+                id: editingRecordId ? editingRecordId : Date.now(),
+                updatedAt: new Date().toISOString(),
+                empName,
+                monthVal,
+                cutoffVal,
+                dailyRate,
+                daysWorked,
+                otData,
+                incomeData,
+                customDedData,
+                deductions: {
+                    sss: parseFloat(document.getElementById('ded-sss').value) || 0,
+                    philhealth: parseFloat(document.getElementById('ded-philhealth').value) || 0,
+                    pagibig: parseFloat(document.getElementById('ded-pagibig').value) || 0,
+                    tax: parseFloat(document.getElementById('ded-tax').value) || 0,
+                },
+                summary: {
+                    grossPayText,
+                    totalDeductionsText,
+                    netPayText
+                }
             };
 
-            let history = JSON.parse(localStorage.getItem('payroll_history_offset_v4') || '[]');
-            history.unshift(record);
-            localStorage.setItem('payroll_history_offset_v4', JSON.stringify(history));
+            let logs = JSON.parse(localStorage.getItem('payroll_logs') || '[]');
 
-            renderHistoryTable();
+            if (editingRecordId) {
+                // Update Existing Record In Place
+                const index = logs.findIndex(r => r.id === editingRecordId);
+                if (index !== -1) {
+                    logs[index] = record;
+                    showToast(`Updated Payroll Record #${editingRecordId}!`, 'success');
+                }
+            } else {
+                // Insert New Record
+                logs.unshift(record);
+                showToast('New Payroll Record Saved Successfully!', 'success');
+            }
+
+            localStorage.setItem('payroll_logs', JSON.stringify(logs));
+            
+            // Exit Edit Mode and Refresh
+            cancelEditing();
+            renderSavedLogs();
         }
 
-        function renderHistoryTable() {
-            const history = JSON.parse(localStorage.getItem('payroll_history_offset_v4') || '[]');
-            const tbody = document.getElementById('historyTableBody');
+        // Load Record into Form for Editing
+        function editPayrollRecord(id) {
+            const logs = JSON.parse(localStorage.getItem('payroll_logs') || '[]');
+            const record = logs.find(r => r.id === id);
 
-            if (history.length === 0) {
+            if (!record) return;
+
+            editingRecordId = record.id;
+
+            // Populate Main Fields
+            document.getElementById('emp-name').value = record.empName || '';
+            document.getElementById('pay-month').value = record.monthVal || '';
+            document.getElementById('cutoff-period').value = record.cutoffVal || '1';
+            document.getElementById('daily-rate').value = record.dailyRate || 0;
+            document.getElementById('days-worked').value = record.daysWorked || 0;
+
+            // Clear & Populate OT Rows
+            document.getElementById('ot-rows-container').innerHTML = '';
+            if (record.otData && record.otData.length > 0) {
+                record.otData.forEach(ot => addOtRow(ot.date, ot.startTime, ot.endTime));
+            }
+
+            // Clear & Populate Income Rows
+            document.getElementById('income-rows-container').innerHTML = '';
+            if (record.incomeData && record.incomeData.length > 0) {
+                record.incomeData.forEach(inc => addIncomeRow(inc.label, inc.amount));
+            }
+
+            // Populate Deductions
+            document.getElementById('ded-sss').value = record.deductions?.sss || 0;
+            document.getElementById('ded-philhealth').value = record.deductions?.philhealth || 0;
+            document.getElementById('ded-pagibig').value = record.deductions?.pagibig || 0;
+            document.getElementById('ded-tax').value = record.deductions?.tax || 0;
+
+            // Clear & Populate Custom Deductions
+            document.getElementById('deduction-rows-container').innerHTML = '';
+            if (record.customDedData && record.customDedData.length > 0) {
+                record.customDedData.forEach(d => addDeductionRow(d.label, d.amount));
+            }
+
+            // Update UI State / Edit Mode Banners
+            const monthText = document.getElementById('pay-month').value;
+            const banner = document.getElementById('edit-mode-banner');
+            document.getElementById('edit-mode-text').textContent = `Editing Saved Record ID #${record.id} (${record.empName} - ${monthText})`;
+            banner.classList.remove('hidden');
+
+            document.getElementById('save-btn-text').textContent = 'Update Saved Record';
+            document.getElementById('summary-save-btn').textContent = 'Update Saved Record';
+
+            // Recalculate Form & Scroll to top
+            updateOtRulesInfo();
+            calculatePayroll();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            showToast(`Loaded Record #${record.id} for editing`, 'info');
+        }
+
+        // Exit Edit Mode
+        function cancelEditing() {
+            editingRecordId = null;
+            document.getElementById('edit-mode-banner').classList.add('hidden');
+            document.getElementById('save-btn-text').textContent = 'Save Payroll Record';
+            document.getElementById('summary-save-btn').textContent = 'Save Record';
+        }
+
+        // Reset All Form Fields
+        function resetForm() {
+            cancelEditing();
+            document.getElementById('emp-name').value = 'John Doe';
+            document.getElementById('daily-rate').value = '695';
+            document.getElementById('days-worked').value = '12';
+            document.getElementById('ded-sss').value = '0';
+            document.getElementById('ded-philhealth').value = '0';
+            document.getElementById('ded-pagibig').value = '0';
+            document.getElementById('ded-tax').value = '0';
+
+            document.getElementById('ot-rows-container').innerHTML = '';
+            document.getElementById('income-rows-container').innerHTML = '';
+            document.getElementById('deduction-rows-container').innerHTML = '';
+
+            addOtRow();
+            addIncomeRow('Meal Allowance (Fixed)', 0);
+            calculatePayroll();
+            showToast('Form reset to default values', 'info');
+        }
+
+        // Delete Log Record
+        function deleteRecord(id) {
+            let logs = JSON.parse(localStorage.getItem('payroll_logs') || '[]');
+            logs = logs.filter(r => r.id !== id);
+            localStorage.setItem('payroll_logs', JSON.stringify(logs));
+            
+            if (editingRecordId === id) {
+                cancelEditing();
+            }
+
+            renderSavedLogs();
+            showToast('Payroll record deleted', 'info');
+        }
+
+        // Render Saved Logs Table
+        function renderSavedLogs() {
+            const logs = JSON.parse(localStorage.getItem('payroll_logs') || '[]');
+            const tbody = document.getElementById('payroll-logs-body');
+            document.getElementById('record-count').textContent = logs.length;
+
+            if (logs.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="8" class="text-center py-6 text-slate-400">
-                            No saved pay history yet. Click "Save Record" to log this cut-off.
+                        <td colspan="7" class="text-center py-8 text-slate-400 text-xs">
+                            <i class="fa-solid fa-folder-open text-2xl mb-2 block"></i>
+                            No saved payroll records found. Click "Save Payroll Record" above to store your calculations.
                         </td>
                     </tr>
                 `;
                 return;
             }
 
-            tbody.innerHTML = history.map((item) => `
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
-                    <td class="py-3 px-2 font-bold text-brand-600 dark:text-brand-400 text-xs">${item.cycle}</td>
-                    <td class="py-3 px-2 font-semibold text-slate-700 dark:text-slate-300 text-xs">${item.dateRange}</td>
-                    <td class="py-3 px-2 font-medium text-amber-700 dark:text-amber-400 text-xs">${item.otWindow}</td>
-                    <td class="py-3 px-2 text-xs font-medium text-slate-600 dark:text-slate-400">${item.daysRate}</td>
-                    <td class="py-3 px-2 text-brand-600 font-medium text-xs">${item.otPay}</td>
-                    <td class="py-3 px-2 text-indigo-600 font-bold text-xs">${item.otherIncome || '₱0.00'}</td>
-                    <td class="py-3 px-2 font-bold text-slate-900 dark:text-white text-xs">${item.net}</td>
-                    <td class="py-3 px-2 text-right">
-                        <button onclick="deleteHistoryItem(${item.id})" class="text-rose-500 hover:text-rose-700 p-1">
-                            <i data-lucide="trash" class="w-4 h-4"></i>
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
+            tbody.innerHTML = logs.map(rec => {
+                const isCurrentlyEditing = editingRecordId === rec.id;
+                const rowBg = isCurrentlyEditing ? 'bg-amber-50/80 border-l-4 border-amber-500' : 'hover:bg-slate-50/80';
 
-            lucide.createIcons();
-        }
-
-        function deleteHistoryItem(id) {
-            let history = JSON.parse(localStorage.getItem('payroll_history_offset_v4') || '[]');
-            history = history.filter(item => item.id !== id);
-            localStorage.setItem('payroll_history_offset_v4', JSON.stringify(history));
-            renderHistoryTable();
-        }
-
-        function clearHistory() {
-            if (confirm('Are you sure you want to clear all saved payroll history?')) {
-                localStorage.removeItem('payroll_history_offset_v4');
-                renderHistoryTable();
-            }
+                return `
+                    <tr class="${rowBg} transition">
+                        <td class="p-3 font-medium text-slate-800">
+                            <div>${rec.monthVal || '--'} (${rec.cutoffVal === '1' ? '1st Cutoff' : '2nd Cutoff'})</div>
+                            <div class="text-[10px] text-slate-400">ID: #${rec.id}</div>
+                        </td>
+                        <td class="p-3 text-slate-600 font-medium">${rec.empName}</td>
+                        <td class="p-3 text-slate-600">${rec.daysWorked} days</td>
+                        <td class="p-3 text-slate-600 font-semibold">${rec.summary?.grossPayText || '₱0.00'}</td>
+                        <td class="p-3 text-rose-600">${rec.summary?.totalDeductionsText || '₱0.00'}</td>
+                        <td class="p-3 font-extrabold text-brand-700">${rec.summary?.netPayText || '₱0.00'}</td>
+                        <td class="p-3 text-center">
+                            <div class="flex items-center justify-center gap-1">
+                                <button onclick="editPayrollRecord(${rec.id})" class="bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold px-2.5 py-1 rounded text-xs transition flex items-center gap-1" title="Load into form to edit">
+                                    <i class="fa-solid fa-pen-to-square"></i> Edit
+                                </button>
+                                <button onclick="editPayrollRecord(${rec.id}); setTimeout(() => window.print(), 200);" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs transition" title="View / Print">
+                                    <i class="fa-solid fa-print"></i>
+                                </button>
+                                <button onclick="deleteRecord(${rec.id})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-2 py-1 rounded text-xs transition" title="Delete">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         }
     </script>
 </body>
